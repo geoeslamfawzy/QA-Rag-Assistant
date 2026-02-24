@@ -31,6 +31,22 @@ class OutputWriter:
         """Write RAG-generated prompt markdown. Returns the path written."""
         return self._write("prompts", f"prompt-{issue_key}.md", content)
 
+    def write_review(self, issue_key: str, content: str) -> Path:
+        """Write test case review markdown. Returns the path written."""
+        return self._write("review", f"review-{issue_key}.md", content)
+
+    def write_ambiguity(self, issue_key: str, content: str) -> Path:
+        """Write ambiguity analysis markdown. Returns the path written."""
+        return self._write("ambiguity", f"ambiguity-{issue_key}.md", content)
+
+    def write_story_defect(self, issue_key: str, content: str) -> Path:
+        """Write story defect markdown. Returns the path written."""
+        return self._write("story-defect", f"story-defect-{issue_key}.md", content)
+
+    def write_defect(self, issue_key: str, content: str) -> Path:
+        """Write violation defect markdown. Returns the path written."""
+        return self._write("defect", f"defect-{issue_key}.md", content)
+
     def _write(self, subdir: str, filename: str, content: str) -> Path:
         out_dir = self._base / subdir
         out_dir.mkdir(parents=True, exist_ok=True)

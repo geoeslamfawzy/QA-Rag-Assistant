@@ -13,7 +13,7 @@ from rich.panel import Panel
 from jira_client import JiraClient
 from analyzer import IssueAnalyzer
 from display import IssueDisplay, AnalysisDisplay
-from services import OutputWriter, AnalysisService, TestCaseService
+from services import OutputWriter, AnalysisService, TestCaseService, RAGContextBuilder, QACommandService
 
 console = Console()
 
@@ -50,6 +50,29 @@ def main():
     tc_parser = subparsers.add_parser('generate-tc', help='Generate test cases for a story')
     tc_parser.add_argument('issue_key', type=str, help='Story key (e.g., PROJ-123)')
 
+    # New QA commands using shared RAG pipeline
+    review_parser = subparsers.add_parser('review', help='Review test coverage and detect gaps')
+    review_parser.add_argument('issue_key', type=str, help='Story key (e.g., PROJ-123)')
+
+    ambiguity_parser = subparsers.add_parser('get-ambiguity', help='Detect unclear requirements')
+    ambiguity_parser.add_argument('issue_key', type=str, help='Story key (e.g., PROJ-123)')
+
+    story_defect_parser = subparsers.add_parser('write-story-defect', help='Generate defect for requirement issue')
+    story_defect_parser.add_argument('issue_key', type=str, help='Story key (e.g., PROJ-123)')
+    story_defect_parser.add_argument(
+        '--issue-type', type=str, default='missing_ac',
+        choices=['missing_ac', 'unclear_requirement', 'incomplete_story'],
+        help='Type of story issue (default: missing_ac)'
+    )
+
+    defect_parser = subparsers.add_parser('write-defect', help='Generate defect for rule/state/financial violation')
+    defect_parser.add_argument('issue_key', type=str, help='Story key (e.g., PROJ-123)')
+    defect_parser.add_argument(
+        '--violation-type', type=str, default='rule',
+        choices=['rule', 'state', 'financial', 'cross_dep'],
+        help='Type of violation (default: rule)'
+    )
+
     args = parser.parse_args()
 
     # Construct dependencies once — all handlers receive them via parameters (DIP)
@@ -65,8 +88,23 @@ def main():
     writer = OutputWriter()
     issue_display = IssueDisplay(console)
     analysis_display = AnalysisDisplay(console)
-    analysis_service = AnalysisService(client, analyzer, writer)
+
+    # Initialize RAG context builder for enhanced analysis
+    # This enables ./bin/analyze to use the RAG pipeline
+    try:
+        rag_builder = RAGContextBuilder(jira_client=client)
+    except Exception as e:
+        console.print(f"[yellow]Warning: RAG context builder unavailable: {e}[/yellow]")
+        console.print("[yellow]Falling back to basic analysis mode.[/yellow]")
+        rag_builder = None
+
+    analysis_service = AnalysisService(client, analyzer, writer, rag_builder=rag_builder)
     tc_service = TestCaseService(client, writer)
+
+    # Initialize QA command service for new commands (review, get-ambiguity, write-*-defect)
+    qa_service = None
+    if rag_builder:
+        qa_service = QACommandService(rag_builder, writer)
 
     if args.command == 'list':
         handle_list(client, analysis_service, issue_display, analysis_display, args)
@@ -79,6 +117,14 @@ def main():
 
     elif args.command == 'generate-tc':
         handle_generate_tc(tc_service, args)
+    elif args.command == 'review':
+        handle_review(qa_service, args)
+    elif args.command == 'get-ambiguity':
+        handle_get_ambiguity(qa_service, args)
+    elif args.command == 'write-story-defect':
+        handle_write_story_defect(qa_service, args)
+    elif args.command == 'write-defect':
+        handle_write_defect(qa_service, args)
     else:
         interactive_mode(client, analysis_service, issue_display, analysis_display)
 
@@ -150,6 +196,68 @@ def handle_generate_tc(tc_service, args):
         console.print(f"[red]Issue {args.issue_key} not found[/red]")
         return
     console.print(f"[green]✓[/green] Test cases written to [bold]{result['saved_path']}[/bold]")
+
+
+def handle_review(qa_service, args):
+    """Handle the review command - analyze test coverage gaps."""
+    if not qa_service:
+        console.print("[red]Error: RAG context builder not available[/red]")
+        console.print("[yellow]This command requires the RAG pipeline to be initialized.[/yellow]")
+        return
+
+    console.print(f"[cyan]Reviewing test coverage for {args.issue_key}...[/cyan]")
+    result = qa_service.review(args.issue_key)
+    if not result:
+        console.print(f"[red]Issue {args.issue_key} not found[/red]")
+        return
+    console.print(f"[green]✓[/green] Review written to [bold]{result['saved_path']}[/bold]")
+
+
+def handle_get_ambiguity(qa_service, args):
+    """Handle the get-ambiguity command - detect unclear requirements."""
+    if not qa_service:
+        console.print("[red]Error: RAG context builder not available[/red]")
+        console.print("[yellow]This command requires the RAG pipeline to be initialized.[/yellow]")
+        return
+
+    console.print(f"[cyan]Analyzing ambiguities for {args.issue_key}...[/cyan]")
+    result = qa_service.get_ambiguity(args.issue_key)
+    if not result:
+        console.print(f"[red]Issue {args.issue_key} not found[/red]")
+        return
+    console.print(f"[green]✓[/green] Ambiguity analysis written to [bold]{result['saved_path']}[/bold]")
+
+
+def handle_write_story_defect(qa_service, args):
+    """Handle the write-story-defect command - generate defect for requirement issue."""
+    if not qa_service:
+        console.print("[red]Error: RAG context builder not available[/red]")
+        console.print("[yellow]This command requires the RAG pipeline to be initialized.[/yellow]")
+        return
+
+    issue_type = getattr(args, 'issue_type', 'missing_ac')
+    console.print(f"[cyan]Generating story defect ({issue_type}) for {args.issue_key}...[/cyan]")
+    result = qa_service.write_story_defect(args.issue_key, issue_type=issue_type)
+    if not result:
+        console.print(f"[red]Issue {args.issue_key} not found[/red]")
+        return
+    console.print(f"[green]✓[/green] Story defect written to [bold]{result['saved_path']}[/bold]")
+
+
+def handle_write_defect(qa_service, args):
+    """Handle the write-defect command - generate defect for rule/state/financial violation."""
+    if not qa_service:
+        console.print("[red]Error: RAG context builder not available[/red]")
+        console.print("[yellow]This command requires the RAG pipeline to be initialized.[/yellow]")
+        return
+
+    violation_type = getattr(args, 'violation_type', 'rule')
+    console.print(f"[cyan]Generating defect ({violation_type} violation) for {args.issue_key}...[/cyan]")
+    result = qa_service.write_defect(args.issue_key, violation_type=violation_type)
+    if not result:
+        console.print(f"[red]Issue {args.issue_key} not found[/red]")
+        return
+    console.print(f"[green]✓[/green] Defect written to [bold]{result['saved_path']}[/bold]")
 
 
 _ISSUE_KEY_PROMPT = "Issue key (e.g., PROJ-123)"

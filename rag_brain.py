@@ -149,10 +149,13 @@ def handle_generate_prompt(args):
         return 1
 
     # Check index exists
-    builder = IndexBuilder()
-    if not builder.config.vector_index_path.exists():
+    index_builder = IndexBuilder()
+    if not index_builder.config.vector_index_path.exists():
         console.print("[yellow]No index found. Building index first...[/yellow]")
-        builder.build_index()
+        index_builder.build_index()
+
+    # Use shared RAGContextBuilder service (same as ./bin/analyze)
+    from services import RAGContextBuilder
 
     with Progress(
         SpinnerColumn(),
@@ -160,99 +163,30 @@ def handle_generate_prompt(args):
         console=console,
     ) as progress:
 
-        # Step 1: Fetch Jira story
-        task = progress.add_task("Fetching Jira story...", total=None)
+        # Step 1: Build RAG context (fetch, pre-analyze, retrieve, validate)
+        task = progress.add_task("Building RAG context...", total=None)
         try:
-            jira_client = JiraClient()
-            issue = jira_client.get_issue(story_key)
-            if not issue:
+            rag_builder = RAGContextBuilder()
+            rag_context = rag_builder.build(story_key)
+            if not rag_context:
                 console.print(f"[red]Story {story_key} not found[/red]")
                 return 1
-
-            story = {
-                "key": issue.get("key"),
-                "title": issue.get("summary"),
-                "status": issue.get("status"),
-                "priority": issue.get("priority"),
-                "issue_type": issue.get("issue_type"),
-                "assignee": issue.get("assignee"),
-                "description": issue.get("description", ""),
-                "acceptance_criteria": issue.get("acceptance_criteria", []),
-            }
         except Exception as e:
-            console.print(f"[red]Failed to fetch story: {e}[/red]")
+            console.print(f"[red]Failed to build RAG context: {e}[/red]")
             return 1
         progress.update(task, completed=True)
 
-        # Step 2: Pre-analyze story
-        task = progress.add_task("Analyzing story...", total=None)
-        pre_analyzer = StoryPreAnalyzer()
-        pre_analysis = pre_analyzer.analyze(story)
-        progress.update(task, completed=True)
-
-        # Step 3: Retrieve knowledge
-        task = progress.add_task("Retrieving knowledge...", total=None)
-        retriever = HybridRetriever()
-
-        # Build query from story
-        query_parts = [story.get("title", "")]
-        if story.get("description"):
-            query_parts.append(story["description"][:500])
-
-        query = " ".join(query_parts)
-
-        # Create story context for retrieval
-        story_context = StoryContext(
-            text=query,
-            detected_domains=pre_analysis.detected_domains,
-            priority_rule_types=pre_analysis.priority_rule_types,
-            risk_flags=pre_analysis.risk_flags,
-            keywords=pre_analysis.keywords[:20]
-        )
-
-        retrieved_chunks = retriever.retrieve(
-            query=query,
-            story_context=story_context,
-            top_k=10
-        )
-        retriever.close()
-        progress.update(task, completed=True)
-
-        # Step 4: Run validators
-        task = progress.add_task("Running validations...", total=None)
-
-        # Convert retrieved chunks for validators
-        knowledge_context = [
-            {
-                "id": chunk.chunk.id,
-                "content": chunk.chunk.content,
-                "metadata": chunk.chunk.metadata
-            }
-            for chunk in retrieved_chunks
-        ]
-
-        # Validators are injected into the pipeline (OCP + DIP).
-        # To add a new validator: create the class and append it to this list.
-        pipeline = ValidatorPipeline([
-            StateValidator(),
-            FinancialValidator(),
-            RuleEngine(),
-            CrossDepChecker(),
-        ])
-        validation_results = pipeline.run_as_dicts(story, knowledge_context)
-
-        progress.update(task, completed=True)
-
-        # Step 5: Build prompt
+        # Step 2: Build prompt
         task = progress.add_task("Building prompt...", total=None)
         prompt_builder = PromptBuilder()
-        prompt_builder.set_story(story)
-        prompt_builder.set_retrieved_context(retrieved_chunks)
-        prompt_builder.set_pre_analysis(pre_analysis)
-        prompt_builder.set_validation_results(validation_results)
+        prompt_builder.set_story(rag_context.story)
+        prompt_builder.set_retrieved_context(rag_context.retrieved_chunks)
+        prompt_builder.set_pre_analysis(rag_context.pre_analysis)
+        prompt_builder.set_validation_results(rag_context.validation_results)
         prompt_builder.set_debug_mode(args.show_scores)
 
         prompt_path = prompt_builder.save()
+        rag_builder.close()
         progress.update(task, completed=True)
 
     # Display results
@@ -261,6 +195,11 @@ def handle_generate_prompt(args):
     console.print("=" * 60)
 
     # Summary
+    story = rag_context.story
+    pre_analysis = rag_context.pre_analysis
+    validation_results = rag_context.validation_results
+    retrieved_chunks = rag_context.retrieved_chunks
+
     console.print(f"\n[bold]Story:[/bold] {story_key} - {story.get('title', '')[:50]}")
     console.print(f"[bold]Risk Level:[/bold] {pre_analysis.risk_level.upper()}")
     console.print(f"[bold]Detected Domains:[/bold] {', '.join(pre_analysis.detected_domains[:5])}")

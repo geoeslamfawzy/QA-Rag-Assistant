@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Run: ./bin/get-ambiguity <story_key>
+# Example: ./bin/get-ambiguity CMB-32860
+# Output: output/ambiguity/ambiguity-{KEY}.md
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$SCRIPT_DIR"
+exec "$SCRIPT_DIR/venv/bin/python3" main.py get-ambiguity "$@"

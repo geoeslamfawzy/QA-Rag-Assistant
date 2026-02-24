@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Run: ./bin/write-story-defect <story_key> [--issue-type TYPE]
+# Example: ./bin/write-story-defect CMB-32860 --issue-type missing_ac
+# Types: missing_ac, unclear_requirement, incomplete_story
+# Output: output/story-defect/story-defect-{KEY}.md
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$SCRIPT_DIR"
+exec "$SCRIPT_DIR/venv/bin/python3" main.py write-story-defect "$@"

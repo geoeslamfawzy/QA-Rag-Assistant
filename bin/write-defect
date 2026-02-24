@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Run: ./bin/write-defect <story_key> [--violation-type TYPE]
+# Example: ./bin/write-defect CMB-32860 --violation-type state
+# Types: rule, state, financial, cross_dep
+# Output: output/defect/defect-{KEY}.md
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$SCRIPT_DIR"
+exec "$SCRIPT_DIR/venv/bin/python3" main.py write-defect "$@"
