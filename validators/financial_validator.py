@@ -45,7 +45,7 @@ class FinancialValidator(BaseValidator):
     - Rounding rules are defined
     """
 
-    # Financial operation patterns
+    # Financial operation patterns (including Yassir Mobility specific)
     OPERATION_PATTERNS = {
         "payment": [
             r'\b(charge|payment|pay|bill|invoice)\b',
@@ -56,38 +56,66 @@ class FinancialValidator(BaseValidator):
             r'\b(refund|reimburse|return)\b',
             r'\b(credit\s+back)\b',
             r'\b(money\s+back)\b',
+            r'\b(revert\s+balance)\b',
         ],
         "discount": [
             r'\b(discount|coupon|promo(?:tion)?|voucher)\b',
             r'\b(\d+%?\s+off)\b',
             r'\b(price\s+reduction)\b',
+            r'\b(challenge\s+discount)\b',
+            r'\b(referral\s+discount)\b',
         ],
         "proration": [
             r'\b(prorate|prorat(?:ed|ion))\b',
             r'\b(partial\s+(?:charge|credit))\b',
             r'\b(pro-rata)\b',
         ],
-        "subscription_billing": [
-            r'\b(recurring\s+(?:charge|payment|billing))\b',
-            r'\b(subscription\s+(?:fee|charge|payment))\b',
-            r'\b(monthly|yearly|annual)\s+(?:fee|charge|payment)\b',
+        "prepaid_billing": [
+            r'\b(prepaid|wallet\s+balance|top-up|topup)\b',
+            r'\b(deduct(?:ion)?)\b',
+            r'\b(wallet\s+(?:charge|deduction))\b',
+        ],
+        "postpaid_billing": [
+            r'\b(postpaid|budget\s+limit|credit\s+limit)\b',
+            r'\b(accrual|accrue)\b',
+            r'\b(invoice\s+(?:total|amount|due))\b',
+        ],
+        "commission": [
+            r'\b(commission|service\s+fee)\b',
+            r'\b(\d+%?\s+commission)\b',
+            r'\b(b2b\s+price)\b',
+            r'\b(platform\s+fee)\b',
+        ],
+        "gift_card": [
+            r'\b(gift\s+card|voucher\s+(?:value|balance))\b',
+            r'\b(remaining\s+balance)\b',
+            r'\b(card\s+(?:value|amount))\b',
+        ],
+        "referral_reward": [
+            r'\b(free\s+trips?|referral\s+reward)\b',
+            r'\b(invoice\s+discount)\b',
+            r'\b(reward\s+(?:value|amount))\b',
         ],
         "tax": [
-            r'\b(tax|vat|gst|sales\s+tax)\b',
+            r'\b(tax|vat|tva|gst|sales\s+tax)\b',
             r'\b(tax\s+(?:calculation|rate|exempt))\b',
+            r'\b(HT|TTC)\b',
         ],
         "currency": [
             r'\b(currency|exchange\s+rate|forex)\b',
-            r'\b(USD|EUR|GBP|AED|SAR)\b',
+            r'\b(USD|EUR|GBP|DZD|TND|MAD|XOF)\b',
             r'[\$\u20ac\u00a3]\d+',
+            r'\d+\s*(?:DZD|TND|MAD|XOF)\b',
         ],
     }
 
-    # Amount patterns
+    # Amount patterns (including Yassir Mobility currencies)
     AMOUNT_PATTERNS = [
         r'[\$\u20ac\u00a3][\d,]+(?:\.\d{2})?',  # $100.00, 100.00, etc.
         r'\d+(?:,\d{3})*(?:\.\d{2})?\s*(?:USD|EUR|GBP|AED|SAR)',  # 100 USD
+        r'\d+(?:,\d{3})*(?:\.\d{2})?\s*(?:DZD|TND|MAD|XOF)',  # Yassir currencies
         r'\d+(?:\.\d+)?%',  # Percentages
+        r'\d+K?\s*DZD',  # Common Yassir format like "500K DZD" or "5000 DZD"
     ]
 
     # Required considerations for financial operations

@@ -116,38 +116,63 @@ class RAGConfig:
     # INTENT DETECTION PATTERNS
     # ===========================================
 
+    # Yassir Mobility B2B-specific intent patterns
     INTENT_PATTERNS: Dict[str, List[str]] = field(default_factory=lambda: {
-        "plan_switch": [
-            "upgrade", "downgrade", "change plan", "switch subscription",
-            "plan change", "subscription change", "tier change"
+        "trip_booking": [
+            "book ride", "instant trip", "scheduled trip", "multi-stop",
+            "request ride", "book for", "guest booking", "rebook",
+            "trip request", "ride request", "book later"
         ],
-        "referral": [
-            "referral", "refer", "invite", "bonus", "reward",
-            "referral code", "invite code", "friend invite"
+        "enterprise_management": [
+            "enterprise", "activate enterprise", "deactivate enterprise",
+            "legal info", "company profile", "business account",
+            "enterprise status", "account activation"
+        ],
+        "program_config": [
+            "create program", "program settings", "ride limit",
+            "budget per member", "auto-approval", "geofencing",
+            "program schedule", "working days", "service restriction"
+        ],
+        "payment_flow": [
+            "prepaid", "postpaid", "top-up", "wallet balance",
+            "budget limit", "invoice", "payment plan", "commission",
+            "billing", "charge", "refund", "DZD"
         ],
         "gift_card": [
-            "gift card", "voucher", "redeem", "gift code",
-            "coupon", "promo code", "discount code"
+            "gift card", "voucher", "redeem", "revert balance",
+            "card template", "gift card purchase", "remaining balance",
+            "deactivate card"
         ],
-        "financial_update": [
-            "payment", "billing", "invoice", "charge", "refund",
-            "transaction", "credit", "debit", "balance"
+        "referral": [
+            "referral", "refer business", "free trips reward",
+            "invoice discount", "referral link", "referred enterprise",
+            "referral rule", "completed referral"
+        ],
+        "challenge": [
+            "business challenge", "badge", "tier", "discount earned",
+            "challenge progress", "copper", "bronze", "silver", "gold", "platinum",
+            "upcoming challenge", "ongoing challenge"
+        ],
+        "user_management": [
+            "invite users", "rider", "business admin", "super admin",
+            "program moderator", "user role", "group assignment",
+            "CSV invite", "bulk invite", "user verification"
+        ],
+        "group_management": [
+            "create group", "delete group", "migrate members",
+            "group assignment", "default group"
         ],
         "role_change": [
-            "role", "permission", "admin", "access level",
-            "privilege", "authorization", "rights"
+            "promote", "demote", "super admin", "moderator",
+            "permission", "access level", "role assignment"
         ],
         "lifecycle_change": [
             "activate", "deactivate", "suspend", "terminate",
-            "pause", "resume", "lifecycle"
+            "enterprise status", "program status", "inactive"
         ],
         "deletion": [
-            "delete", "remove", "cancel", "purge",
-            "archive", "soft delete", "hard delete"
-        ],
-        "activation": [
-            "activate", "enable", "create account", "register",
-            "onboard", "signup", "sign up", "enrollment"
+            "delete", "remove", "cancel", "archive",
+            "delete enterprise", "delete program", "delete group"
         ]
     })
 
@@ -155,32 +180,40 @@ class RAGConfig:
     # DOMAIN MAPPINGS
     # ===========================================
 
-    # Map intents to knowledge base modules
+    # Map intents to Yassir Mobility knowledge base modules
     INTENT_TO_DOMAIN: Dict[str, List[str]] = field(default_factory=lambda: {
-        "plan_switch": ["subscription", "payment_processing", "user_management"],
-        "referral": ["referral_system", "user_management", "payment_processing"],
-        "gift_card": ["gift_cards", "payment_processing", "invoicing"],
-        "financial_update": ["payment_processing", "invoicing", "subscription"],
-        "role_change": ["user_management", "access_control"],
-        "lifecycle_change": ["user_management", "subscription"],
-        "deletion": ["user_management", "data_retention"],
-        "activation": ["user_management", "subscription", "onboarding"]
+        "trip_booking": ["trips", "b2b_portal", "programs", "payments"],
+        "enterprise_management": ["admin_panel", "enterprises", "b2b_portal"],
+        "program_config": ["programs", "b2b_portal", "trips"],
+        "payment_flow": ["payments", "b2b_pricing", "admin_panel"],
+        "gift_card": ["gift_cards", "gift_card_logic", "payments"],
+        "referral": ["referrals", "referral_rewards", "payments"],
+        "challenge": ["challenges", "admin_panel", "payments"],
+        "user_management": ["programs", "b2b_portal", "admin_panel"],
+        "group_management": ["programs", "b2b_portal"],
+        "role_change": ["b2b_portal", "admin_panel", "programs"],
+        "lifecycle_change": ["enterprises", "admin_panel", "programs"],
+        "deletion": ["enterprises", "programs", "admin_panel"]
     })
 
     # ===========================================
     # RISK LEVEL MAPPINGS
     # ===========================================
 
-    # Risk levels by intent
+    # Risk levels by intent (Yassir Mobility specific)
     INTENT_RISK_LEVELS: Dict[str, str] = field(default_factory=lambda: {
-        "plan_switch": "high",
-        "referral": "medium",
-        "gift_card": "medium",
-        "financial_update": "critical",
+        "trip_booking": "high",
+        "enterprise_management": "critical",
+        "program_config": "medium",
+        "payment_flow": "critical",
+        "gift_card": "high",
+        "referral": "high",
+        "challenge": "medium",
+        "user_management": "medium",
+        "group_management": "low",
         "role_change": "high",
-        "lifecycle_change": "high",
-        "deletion": "critical",
-        "activation": "medium"
+        "lifecycle_change": "critical",
+        "deletion": "critical"
     })
 
     # ===========================================

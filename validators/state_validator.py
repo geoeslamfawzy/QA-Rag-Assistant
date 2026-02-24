@@ -44,7 +44,7 @@ class StateValidator(BaseValidator):
     - Missing states that should be mentioned
     """
 
-    # Common state names to detect
+    # Common state names to detect (including Yassir Mobility states)
     STATE_PATTERNS = [
         # General states
         r'\b(active|inactive|pending|suspended|cancelled|completed|failed|expired)\b',
@@ -56,8 +56,22 @@ class StateValidator(BaseValidator):
         r'\b(approved|rejected|draft|submitted|review|reviewed)\b',
         # Payment states
         r'\b(paid|unpaid|refunded|charged|pending_payment|payment_failed)\b',
-        # Subscription states
-        r'\b(trial|basic|premium|enterprise|free|expired_trial)\b',
+        # Yassir Trip states
+        r'\b(PENDING|ACCEPTED|DRIVER_ARRIVED|STARTED|FINISHED)\b',
+        r'\b(DRIVER_CANCELED|RIDER_CANCELED|NO_DRIVER_AVAILABLE)\b',
+        r'\b(DRIVER_COMING_CANCELED|DRIVER_COMING_RIDER_CANCELED)\b',
+        r'\b(DRIVER_ABANDONED|RIDER_ABANDONED|ADJUSTED)\b',
+        r'\b(TRIP_REQUEST_EXPIRED|TRIP_REQUEST_DECLINED|BOOK_ASSIGNED)\b',
+        # Yassir Enterprise states
+        r'\b(PENDING|ACTIVE|INACTIVE)\b',
+        # Yassir Gift Card states
+        r'\b(ACTIVE|EXPIRED|DEACTIVATED|REVERTED|EXHAUSTED)\b',
+        # Yassir Challenge states
+        r'\b(UPCOMING|ONGOING|COMPLETED|EXPIRED|DISABLED)\b',
+        # Yassir Tier/Badge states
+        r'\b(LOCKED|UNLOCKED)\b',
+        # Yassir Referral states
+        r'\b(AVAILABLE|USED|EXPIRED|VOIDED)\b',
     ]
 
     # Transition indicators
