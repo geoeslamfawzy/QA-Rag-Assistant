@@ -1,0 +1,24 @@
+"Summary","Description","Issue Type","Priority","Components","Labels","Sprint"
+"Missing logout acceptance criteria","Preconditions:
+Story CMB-32860 exists in backlog
+User has access to payments, b2b_pricing, admin_panel module(s)
+
+Description:
+No AC defined for logout flow
+
+Steps to Reproduce:
+1. Open story CMB-32860 in Jira
+2. Navigate to acceptance criteria section
+3. Observe that no acceptance criteria are defined
+
+Expected Results:
+Story should have clear, testable acceptance criteria that define:
+- Success conditions
+- Edge cases to handle
+- Error scenarios
+
+Actual Results:
+Acceptance criteria field is empty or insufficient.
+
+Environment:
+Yassir Mobility B2B Platform","Defect","Highest","Payments","Regression-testing,regression-testing","Defects/Bugs/Imp"

@@ -64,6 +64,14 @@ def main():
         choices=['missing_ac', 'unclear_requirement', 'incomplete_story'],
         help='Type of story issue (default: missing_ac)'
     )
+    story_defect_parser.add_argument(
+        '--summary', type=str, default=None,
+        help='Custom defect summary (overrides auto-generated)'
+    )
+    story_defect_parser.add_argument(
+        '--description', type=str, default=None,
+        help='Custom defect description (overrides auto-generated)'
+    )
 
     defect_parser = subparsers.add_parser('write-defect', help='Generate defect for rule/state/financial violation')
     defect_parser.add_argument('issue_key', type=str, help='Story key (e.g., PROJ-123)')
@@ -71,6 +79,14 @@ def main():
         '--violation-type', type=str, default='rule',
         choices=['rule', 'state', 'financial', 'cross_dep'],
         help='Type of violation (default: rule)'
+    )
+    defect_parser.add_argument(
+        '--summary', type=str, default=None,
+        help='Custom defect summary (overrides auto-generated)'
+    )
+    defect_parser.add_argument(
+        '--description', type=str, default=None,
+        help='Custom defect description (overrides auto-generated)'
     )
 
     args = parser.parse_args()
@@ -240,12 +256,32 @@ def handle_write_story_defect(qa_service, args):
         return
 
     issue_type = getattr(args, 'issue_type', 'missing_ac')
+    custom_summary = getattr(args, 'summary', None)
+    custom_description = getattr(args, 'description', None)
+
     console.print(f"[cyan]Generating story defect ({issue_type}) for {args.issue_key}...[/cyan]")
-    result = qa_service.write_story_defect(args.issue_key, issue_type=issue_type)
+    result = qa_service.write_story_defect(
+        args.issue_key,
+        issue_type=issue_type,
+        custom_summary=custom_summary,
+        custom_description=custom_description,
+    )
     if not result:
         console.print(f"[red]Issue {args.issue_key} not found[/red]")
         return
-    console.print(f"[green]✓[/green] Story defect written to [bold]{result['saved_path']}[/bold]")
+
+    # Display CSV path (primary output for Jira import)
+    if "csv_path" in result:
+        console.print(f"[green]✓[/green] CSV (Jira-ready): [bold]{result['csv_path']}[/bold]")
+
+    # Display Markdown path (secondary/documentation)
+    if "md_path" in result:
+        console.print(f"[green]✓[/green] Markdown: [bold]{result['md_path']}[/bold]")
+
+    # Display defect summary
+    defect = result.get("defect")
+    if defect:
+        console.print(f"[dim]Risk: {defect.risk_level} | Component: {defect.component}[/dim]")
 
 
 def handle_write_defect(qa_service, args):
@@ -256,12 +292,32 @@ def handle_write_defect(qa_service, args):
         return
 
     violation_type = getattr(args, 'violation_type', 'rule')
+    custom_summary = getattr(args, 'summary', None)
+    custom_description = getattr(args, 'description', None)
+
     console.print(f"[cyan]Generating defect ({violation_type} violation) for {args.issue_key}...[/cyan]")
-    result = qa_service.write_defect(args.issue_key, violation_type=violation_type)
+    result = qa_service.write_defect(
+        args.issue_key,
+        violation_type=violation_type,
+        custom_summary=custom_summary,
+        custom_description=custom_description,
+    )
     if not result:
         console.print(f"[red]Issue {args.issue_key} not found[/red]")
         return
-    console.print(f"[green]✓[/green] Defect written to [bold]{result['saved_path']}[/bold]")
+
+    # Display CSV path (primary output for Jira import)
+    if "csv_path" in result:
+        console.print(f"[green]✓[/green] CSV (Jira-ready): [bold]{result['csv_path']}[/bold]")
+
+    # Display Markdown path (secondary/documentation)
+    if "md_path" in result:
+        console.print(f"[green]✓[/green] Markdown: [bold]{result['md_path']}[/bold]")
+
+    # Display defect summary
+    defect = result.get("defect")
+    if defect:
+        console.print(f"[dim]Risk: {defect.risk_level} | Component: {defect.component}[/dim]")
 
 
 _ISSUE_KEY_PROMPT = "Issue key (e.g., PROJ-123)"
