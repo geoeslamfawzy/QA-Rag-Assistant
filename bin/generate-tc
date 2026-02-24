@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Run: ./bin/generate-tc <story_key>
+# Example: ./bin/generate-tc CMB-32860
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$SCRIPT_DIR"
+exec "$SCRIPT_DIR/venv/bin/python3" main.py generate-tc "$@"

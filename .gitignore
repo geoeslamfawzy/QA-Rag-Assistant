@@ -1,0 +1,26 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+ENV/
+.venv
+*.egg-info/
+dist/
+build/
+
+# RAG Brain - Vector Index (can be large, regenerate locally)
+.index/*.json
+!.index/.gitkeep
+
+# Generated outputs (consolidated under output/)
+output/analysis/*.md
+output/prompts/*.md
+output/test-suite/*.md
+
+
+# Ollama cache
+.ollama_cache/

@@ -1,0 +1,7 @@
+#!/bin/bash
+# Build RAG Brain Index
+# Scans knowledge base and generates embeddings using Ollama
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$SCRIPT_DIR"
+exec "$SCRIPT_DIR/venv/bin/python3" "$SCRIPT_DIR/rag_brain.py" build-index "$@"

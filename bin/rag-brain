@@ -1,0 +1,7 @@
+#!/bin/bash
+# RAG Brain - Local QA Analysis System
+# Generates structured prompts for manual paste into Claude Pro
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$SCRIPT_DIR"
+exec "$SCRIPT_DIR/venv/bin/python3" "$SCRIPT_DIR/rag_brain.py" "$@"
