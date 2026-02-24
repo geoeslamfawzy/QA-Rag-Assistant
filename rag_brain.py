@@ -250,7 +250,7 @@ def handle_generate_prompt(args):
         prompt_builder.set_retrieved_context(retrieved_chunks)
         prompt_builder.set_pre_analysis(pre_analysis)
         prompt_builder.set_validation_results(validation_results)
-        prompt_builder.set_debug_mode(args.verbose)
+        prompt_builder.set_debug_mode(args.show_scores)
 
         prompt_path = prompt_builder.save()
         progress.update(task, completed=True)
@@ -333,13 +333,20 @@ def handle_retrieve(args):
 
 def main():
     """Main entry point."""
+    # Auto-detect story key: if first arg doesn't match a subcommand, treat as story key
+    subcommands = ['build-index', 'status', 'retrieve', 'analyze', '-h', '--help']
+    if len(sys.argv) > 1 and sys.argv[1] not in subcommands:
+        # Check if it looks like a Jira key (e.g., CMB-32860, PROJ-123)
+        if '-' in sys.argv[1] and not sys.argv[1].startswith('-'):
+            sys.argv.insert(1, 'analyze')
+
     parser = argparse.ArgumentParser(
         description="Local RAG Brain - QA Analysis System",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   %(prog)s CMB-35047              Generate prompt for story
-  %(prog)s CMB-35047 --verbose    Include debug scores
+  %(prog)s CMB-35047 --show-scores  Include retrieval scores in prompt
   %(prog)s CMB-35047 --clipboard  Copy to clipboard
   %(prog)s build-index            Build/rebuild index
   %(prog)s status                 Show index status
@@ -392,18 +399,21 @@ Examples:
         help="Show detailed scores"
     )
 
-    # Main command (story key)
-    parser.add_argument(
+    # Analyze command (story key)
+    analyze_parser = subparsers.add_parser(
+        "analyze",
+        help="Generate QA prompt for a Jira story"
+    )
+    analyze_parser.add_argument(
         "story_key",
-        nargs="?",
         help="Jira story key (e.g., CMB-35047)"
     )
-    parser.add_argument(
-        "--verbose", "-v",
+    analyze_parser.add_argument(
+        "--show-scores", "-s",
         action="store_true",
-        help="Include debug information in prompt"
+        help="Include retrieval relevance scores and validator details in prompt"
     )
-    parser.add_argument(
+    analyze_parser.add_argument(
         "--clipboard", "-c",
         action="store_true",
         help="Copy prompt to clipboard"
@@ -418,7 +428,7 @@ Examples:
         return handle_status(args)
     elif args.command == "retrieve":
         return handle_retrieve(args)
-    elif args.story_key:
+    elif args.command == "analyze":
         return handle_generate_prompt(args)
     else:
         parser.print_help()

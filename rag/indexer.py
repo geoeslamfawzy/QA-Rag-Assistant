@@ -29,11 +29,19 @@ class DocumentChunk:
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
+        # Ensure metadata values are JSON serializable
+        serializable_metadata = {}
+        for key, value in self.metadata.items():
+            if hasattr(value, 'isoformat'):  # Handle date/datetime objects
+                serializable_metadata[key] = value.isoformat()
+            else:
+                serializable_metadata[key] = value
+
         return {
             "id": self.id,
             "content": self.content,
             "embedding": self.embedding,
-            "metadata": self.metadata
+            "metadata": serializable_metadata
         }
 
     @classmethod
