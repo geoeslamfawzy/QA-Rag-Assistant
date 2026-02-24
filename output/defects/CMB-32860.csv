@@ -1,4 +1,4 @@
-"Summary","Description","Issue Type","Priority","Components","Labels","Sprint"
+"Summary","Description","Issue Type","Priority","Components","Labels","Sprint","Parent"
 "Missing logout acceptance criteria","Preconditions:
 Story CMB-32860 exists in backlog
 User has access to payments, b2b_pricing, admin_panel module(s)
@@ -21,4 +21,4 @@ Actual Results:
 Acceptance criteria field is empty or insufficient.
 
 Environment:
-Yassir Mobility B2B Platform","Defect","Highest","Payments","Regression-testing,regression-testing","Defects/Bugs/Imp"
+Yassir Mobility B2B Platform","Defect","Highest","Payments","Regression-testing,regression-testing","Defects/Bugs/Imp","CMB-32860"

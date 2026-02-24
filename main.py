@@ -259,6 +259,22 @@ def handle_write_story_defect(qa_service, args):
     custom_summary = getattr(args, 'summary', None)
     custom_description = getattr(args, 'description', None)
 
+    # Interactive prompt for defect description if not provided via CLI
+    if custom_description is None:
+        console.print(Panel.fit(
+            "[bold cyan]Defect Description Required[/bold cyan]\n"
+            "Please provide a description of the defect you observed.\n"
+            "This will be preserved exactly as entered.",
+            border_style="cyan"
+        ))
+        custom_description = Prompt.ask(
+            "[bold]Enter defect description[/bold]",
+            default=""
+        )
+        if not custom_description.strip():
+            console.print("[yellow]Warning: No description provided. Proceeding with auto-generated description.[/yellow]")
+            custom_description = None
+
     console.print(f"[cyan]Generating story defect ({issue_type}) for {args.issue_key}...[/cyan]")
     result = qa_service.write_story_defect(
         args.issue_key,

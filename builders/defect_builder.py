@@ -118,7 +118,7 @@ class DefectBuilder:
 
         Args:
             context: RAGContext from RAGContextBuilder
-            options: Build options including issue_type
+            options: Build options including issue_type and custom_description
 
         Returns:
             Defect object ready for CSV export
@@ -129,10 +129,18 @@ class DefectBuilder:
         # Use custom values if provided, otherwise auto-generate from RAG context
         summary = options.custom_summary or self._extract_story_defect_summary(context, options)
         preconditions = self._extract_preconditions(context)
-        description = options.custom_description or self._extract_story_defect_description(context, options)
+
+        # Preserve user_description separately from auto-generated description
+        user_description = options.custom_description or ""
+        description = self._extract_story_defect_description(context, options) if not options.custom_description else ""
+
         steps = self._extract_story_review_steps(context, options)
         expected = self._extract_story_expected_results(context, options)
         actual = self._extract_story_actual_results(context, options)
+
+        # Extract rule IDs from all validators for story defects
+        rule_ids = self._extract_story_rule_ids(context)
+
         component = self._resolve_component(context)
         risk_level = self._resolve_risk_level(context, options)
 
@@ -140,6 +148,7 @@ class DefectBuilder:
             summary=summary,
             preconditions=preconditions,
             description=description,
+            user_description=user_description,
             steps_to_reproduce=steps,
             expected_results=expected,
             actual_results=actual,
@@ -149,7 +158,8 @@ class DefectBuilder:
             defect_type="story_quality",
             violation_type=None,
             issue_type=issue_type,
-            rule_ids=[],
+            rule_ids=rule_ids,
+            parent_key=story.get("key", ""),  # Set parent to story key
         )
 
     def _extract_violation_summary(
@@ -438,6 +448,37 @@ class DefectBuilder:
         # Extract from knowledge chunks if no rule IDs found
         if not rule_ids:
             for chunk in context.retrieved_chunks[:3]:
+                chunk_id = chunk.chunk.id
+                if chunk_id and chunk_id not in rule_ids:
+                    rule_ids.append(chunk_id)
+
+        return rule_ids[:5]  # Limit to 5 rule IDs
+
+    def _extract_story_rule_ids(self, context: RAGContext) -> List[str]:
+        """
+        Extract relevant rule IDs from all validators for story defects.
+
+        Collects rule IDs from:
+        - StateValidator (SM:* prefix for state machine violations)
+        - FinancialValidator (FIN-* prefix for financial rules)
+        - RuleEngine (business rules)
+        - Knowledge chunks as fallback
+
+        Returns:
+            List of rule IDs (max 5)
+        """
+        rule_ids = []
+
+        # Extract from all validation results
+        for validator_name, result in context.validation_results.items():
+            for finding in result.get("findings", []):
+                rule_id = finding.get("rule_id")
+                if rule_id and rule_id not in rule_ids:
+                    rule_ids.append(rule_id)
+
+        # Extract from retrieved chunks if no rule IDs found
+        if not rule_ids:
+            for chunk in context.retrieved_chunks[:5]:
                 chunk_id = chunk.chunk.id
                 if chunk_id and chunk_id not in rule_ids:
                     rule_ids.append(chunk_id)

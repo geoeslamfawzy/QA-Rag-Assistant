@@ -1,7 +1,8 @@
 """
-Defect CSV Exporter for Jira Import
+Story Defect CSV Exporter for Jira Import
 
-Exports defects to Jira-compatible CSV format with fixed business rules.
+Exports story defects to Jira-compatible CSV format with Bug issue type.
+Separate from DefectCSVExporter to handle story-specific requirements.
 """
 import csv
 from pathlib import Path
@@ -10,20 +11,20 @@ from typing import List, Optional
 from models.defect import Defect
 
 
-class DefectCSVExporter:
+class StoryDefectCSVExporter:
     """
-    Exports defects to Jira-compatible CSV format.
+    Exports story defects to Jira-compatible CSV format.
 
     Fixed Business Rules:
-    - Issue Type: "Bug"
+    - Issue Type: "Bug" (NOT "Defect")
     - Labels: "Regression-testing,regression-testing"
     - Sprint: "Defects/Bugs/Imp"
+    - Parent: Set to parent story key
     - Priority: Mapped from risk level (Highest, High, Medium, Low)
-    - Components: Derived from domain
     """
 
-    # Fixed Jira field values
-    ISSUE_TYPE = "Defect"
+    # Fixed Jira field values for story defects
+    ISSUE_TYPE = "Story Defect"
     LABELS = "Regression-testing,regression-testing"
     SPRINT = "Defects/Bugs/Imp"
 
@@ -41,26 +42,27 @@ class DefectCSVExporter:
 
     def __init__(self, output_dir: Optional[Path] = None):
         """
-        Initialize the Defect CSV exporter.
+        Initialize the Story Defect CSV exporter.
 
         Args:
-            output_dir: Output directory for CSV files. Defaults to output/defects/
+            output_dir: Output directory for CSV files. Defaults to output/story-defects/
         """
-        self._output_dir = output_dir or Path("output/defects")
+        self._output_dir = output_dir or Path("output/story-defects")
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
-    def export(self, defect: Defect, issue_key: str) -> Path:
+    def export(self, defect: Defect, parent_key: str) -> Path:
         """
-        Export a single defect to a Jira-compatible CSV file.
+        Export a story defect to a Jira-compatible CSV file.
 
         Args:
             defect: Defect object to export.
-            issue_key: Jira issue key (used for filename).
+            parent_key: Parent story key (e.g., CMB-35293).
 
         Returns:
             Path to the generated CSV file.
         """
-        output_path = self._output_dir / f"{issue_key}.csv"
+        # Filename: <PARENT_KEY>-defect.csv
+        output_path = self._output_dir / f"{parent_key}-defect.csv"
 
         with open(output_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(
@@ -69,22 +71,22 @@ class DefectCSVExporter:
                 quoting=csv.QUOTE_ALL,
             )
             writer.writeheader()
-            writer.writerow(self._defect_to_row(defect))
+            writer.writerow(self._defect_to_row(defect, parent_key))
 
         return output_path
 
-    def export_multiple(self, defects: List[Defect], issue_key: str) -> Path:
+    def export_multiple(self, defects: List[Defect], parent_key: str) -> Path:
         """
-        Export multiple defects to a single Jira-compatible CSV file.
+        Export multiple story defects to a single CSV file.
 
         Args:
             defects: List of Defect objects to export.
-            issue_key: Jira issue key (used for filename).
+            parent_key: Parent story key.
 
         Returns:
             Path to the generated CSV file.
         """
-        output_path = self._output_dir / f"{issue_key}.csv"
+        output_path = self._output_dir / f"{parent_key}-defect.csv"
 
         with open(output_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(
@@ -95,27 +97,29 @@ class DefectCSVExporter:
             writer.writeheader()
 
             for defect in defects:
-                writer.writerow(self._defect_to_row(defect))
+                writer.writerow(self._defect_to_row(defect, parent_key))
 
         return output_path
 
-    def _defect_to_row(self, defect: Defect) -> dict:
+    def _defect_to_row(self, defect: Defect, parent_key: str) -> dict:
         """
         Convert a Defect to a CSV row dictionary.
 
-        Uses Defect.to_csv_row() and ensures fixed business rules are applied.
+        Uses Defect.to_story_defect_csv_row() and ensures fixed business rules.
 
         Args:
             defect: Defect object to convert.
+            parent_key: Parent story key.
 
         Returns:
             Dictionary with CSV column values.
         """
-        row = defect.to_csv_row()
+        row = defect.to_story_defect_csv_row()
 
         # Ensure fixed values are applied (override any defaults)
         row["Issue Type"] = self.ISSUE_TYPE
         row["Labels"] = self.LABELS
         row["Sprint"] = self.SPRINT
+        row["Parent"] = parent_key
 
         return row

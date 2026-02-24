@@ -56,6 +56,7 @@ class Defect:
     summary: str
     preconditions: str = ""
     description: str = ""
+    user_description: str = ""  # User-provided description, preserved exactly
     steps_to_reproduce: List[str] = field(default_factory=list)
     expected_results: str = ""
     actual_results: str = ""
@@ -66,6 +67,7 @@ class Defect:
     violation_type: Optional[str] = None
     issue_type: Optional[str] = None
     rule_ids: List[str] = field(default_factory=list)
+    parent_key: Optional[str] = None  # Parent story key for story defects
 
     def to_jira_description(self) -> str:
         """
@@ -114,6 +116,83 @@ class Defect:
 
         return "\n".join(lines)
 
+    def to_story_defect_description(self) -> str:
+        """
+        Format as Jira-compatible description for story defects.
+
+        Includes user-provided description preserved exactly,
+        enriched with RAG context (rule IDs, preconditions, etc.).
+
+        Returns:
+            Formatted multi-line description for story defect CSV export.
+        """
+        lines = []
+
+        # 1. Preconditions (from RAG context)
+        if self.preconditions:
+            lines.append("Preconditions:")
+            lines.append(self.preconditions)
+            lines.append("")
+
+        # 2. Defect Description (User Provided) - preserved exactly
+        if self.user_description:
+            lines.append("Defect Description (User Provided):")
+            lines.append(self.user_description)
+            lines.append("")
+
+        # 3. Business Rule Reference (from RAG validators)
+        if self.rule_ids:
+            lines.append("Business Rule Reference:")
+            for rule_id in self.rule_ids:
+                lines.append(f"- {rule_id}")
+            lines.append("")
+
+        # 4. Steps to Reproduce
+        if self.steps_to_reproduce:
+            lines.append("Steps to Reproduce:")
+            for i, step in enumerate(self.steps_to_reproduce, 1):
+                lines.append(f"{i}. {step}")
+            lines.append("")
+
+        # 5. Expected Results
+        if self.expected_results:
+            lines.append("Expected Results:")
+            lines.append(self.expected_results)
+            lines.append("")
+
+        # 6. Actual Results
+        if self.actual_results:
+            lines.append("Actual Results:")
+            lines.append(self.actual_results)
+            lines.append("")
+
+        # 7. Environment
+        if self.environment:
+            lines.append("Environment:")
+            lines.append(self.environment)
+
+        return "\n".join(lines)
+
+    def to_story_defect_csv_row(self) -> Dict[str, str]:
+        """
+        Convert Defect to Jira CSV import row for story defects.
+
+        Uses Issue Type "Story Defect".
+
+        Returns:
+            Dictionary with CSV column values matching Jira import format.
+        """
+        return {
+            "Summary": self.summary,
+            "Description": self.to_story_defect_description(),
+            "Issue Type": "Story Defect",
+            "Priority": PRIORITY_MAP.get(self.risk_level.upper(), "Medium"),
+            "Components": self._resolve_component(),
+            "Labels": "Regression-testing,regression-testing",
+            "Sprint": "Defects/Bugs/Imp",
+            "Parent": self.parent_key or "",
+        }
+
     def to_csv_row(self) -> Dict[str, str]:
         """
         Convert Defect to Jira CSV import row.
@@ -130,6 +209,7 @@ class Defect:
             "Components": self._resolve_component(),
             "Labels": "Regression-testing,regression-testing",
             "Sprint": "Defects/Bugs/Imp",
+            "Parent": self.parent_key or "",
         }
 
     def _resolve_component(self) -> str:

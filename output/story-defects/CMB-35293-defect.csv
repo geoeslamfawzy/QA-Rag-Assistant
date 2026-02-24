@@ -1,0 +1,27 @@
+"Summary","Description","Issue Type","Priority","Components","Labels","Sprint","Parent"
+"Missing Acceptance Criteria: [CMB-35293] Regression - PREPROD - WebApp - Referral not expired after plan switch causing trip estimation error on webapp","Preconditions:
+Story CMB-35293 exists in backlog
+User has access to payments, admin_panel, referrals module(s)
+
+Defect Description (User Provided):
+The logout button fails to clear session
+
+Business Rule Reference:
+- RULE-003
+
+Steps to Reproduce:
+1. Open story CMB-35293 in Jira
+2. Navigate to acceptance criteria section
+3. Observe that no acceptance criteria are defined
+
+Expected Results:
+Story should have clear, testable acceptance criteria that define:
+- Success conditions
+- Edge cases to handle
+- Error scenarios
+
+Actual Results:
+Acceptance criteria field is empty or insufficient.
+
+Environment:
+Yassir Mobility B2B Platform","Bug","High","Payments","Regression-testing,regression-testing","Defects/Bugs/Imp","CMB-35293"

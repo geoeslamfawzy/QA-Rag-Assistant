@@ -10,7 +10,7 @@ from enum import Enum
 from pathlib import Path
 
 from builders import DefectBuilder, DefectBuildOptions
-from exporters import DefectCSVExporter
+from exporters import DefectCSVExporter, StoryDefectCSVExporter
 from models.defect import Defect
 from services.rag_context_builder import RAGContextBuilder, RAGContext
 from services.output_writer import OutputWriter
@@ -51,6 +51,7 @@ class QACommandService:
         # Defect building and export
         self._defect_builder = DefectBuilder()
         self._defect_csv_exporter = DefectCSVExporter()
+        self._story_defect_csv_exporter = StoryDefectCSVExporter()
 
         # Template registry - maps command type to template instance
         self._templates = {
@@ -164,9 +165,9 @@ class QACommandService:
             "defect": defect,
         }
 
-        # Step 3: Export CSV (primary output)
+        # Step 3: Export CSV using StoryDefectCSVExporter (outputs to story-defects/)
         if export_csv:
-            csv_path = self._defect_csv_exporter.export(defect, issue_key)
+            csv_path = self._story_defect_csv_exporter.export(defect, issue_key)
             result["csv_path"] = csv_path
             result["saved_path"] = csv_path
 
