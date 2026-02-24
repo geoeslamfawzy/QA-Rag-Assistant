@@ -99,7 +99,7 @@ def main():
         rag_builder = None
 
     analysis_service = AnalysisService(client, analyzer, writer, rag_builder=rag_builder)
-    tc_service = TestCaseService(client, writer)
+    tc_service = TestCaseService(client, writer, rag_builder=rag_builder)
 
     # Initialize QA command service for new commands (review, get-ambiguity, write-*-defect)
     qa_service = None
@@ -191,11 +191,15 @@ def handle_analyze(analysis_service, issue_display, analysis_display, args):
 
 
 def handle_generate_tc(tc_service, args):
+    """Handle generate-tc command - exports test cases to CSV and Markdown."""
+    console.print(f"[cyan]Generating test cases for {args.issue_key}...[/cyan]")
     result = tc_service.generate(args.issue_key)
     if not result:
         console.print(f"[red]Issue {args.issue_key} not found[/red]")
         return
-    console.print(f"[green]✓[/green] Test cases written to [bold]{result['saved_path']}[/bold]")
+    console.print(f"[green]✓[/green] CSV (Jira-ready): [bold]{result['csv_path']}[/bold]")
+    console.print(f"[green]✓[/green] Markdown: [bold]{result['md_path']}[/bold]")
+    console.print(f"[dim]Risk level: {result.get('risk_level', 'MEDIUM')} | Test cases: {len(result.get('test_cases', []))}[/dim]")
 
 
 def handle_review(qa_service, args):
