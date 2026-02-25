@@ -499,6 +499,200 @@ class HybridRetriever:
 
         return filtered[:top_k]
 
+    def retrieve_with_rules(
+        self,
+        query: str,
+        story_context: Optional[StoryContext] = None,
+        top_k: Optional[int] = None,
+        ensure_rule_types: Optional[List[str]] = None
+    ) -> List[RetrievalResult]:
+        """
+        Retrieve chunks ensuring certain rule types are always included.
+
+        This method addresses the retrieval bias where general module content
+        outranks specific atomic rules in similarity search. It ensures that
+        atomic_rule, state_machine, and financial_logic chunks are always
+        included in the results.
+
+        GROUNDING ENFORCEMENT:
+        This method now also checks the KEYWORD_RULE_MAPPING configuration
+        to force retrieval of specific rules when keyword combinations match.
+        This prevents grounding failures like CMB-35293 where FIN-REF-012
+        should have been cited for "referral + plan switch + expire".
+
+        Args:
+            query: Query text.
+            story_context: Optional story analysis context.
+            top_k: Number of regular results to return.
+            ensure_rule_types: Rule types to always include (default: atomic_rule, state_machine, financial_logic).
+
+        Returns:
+            List of RetrievalResult objects with guaranteed rule type coverage.
+        """
+        if not self.load_index():
+            return []
+
+        top_k = top_k or self.config.TOP_K
+
+        # Default rule types to always include
+        if ensure_rule_types is None:
+            ensure_rule_types = ["atomic_rule", "state_machine", "financial_logic"]
+
+        # Step 1: Regular retrieval (similarity-based)
+        regular_results = self.retrieve(query, story_context, top_k)
+
+        # Step 2: GROUNDING ENFORCEMENT - Check keyword-to-rule mapping
+        forced_rules = self._get_forced_rules_from_keywords(query, story_context)
+
+        # Step 3: Get chunks for each ensured rule type
+        # Use direct filtering from all chunks instead of re-running similarity
+        seen_ids = {r.chunk.id for r in regular_results}
+        additional_results = []
+
+        for rule_type in ensure_rule_types:
+            # Find chunks of this rule type that weren't in regular results
+            type_chunks = [
+                chunk for chunk in self.chunks
+                if chunk.metadata.get("rule_type") == rule_type
+                and chunk.id not in seen_ids
+            ]
+
+            if not type_chunks:
+                continue
+
+            # Generate query embedding if not already done
+            query_embedding = self.embedder.embed_text(query)
+
+            # Score these chunks by cosine similarity
+            scored = []
+            for chunk in type_chunks:
+                if chunk.embedding:
+                    score = self.cosine_similarity(query_embedding, chunk.embedding)
+                    scored.append((chunk, score))
+
+            # Sort by score and take top matches for this rule type
+            scored.sort(key=lambda x: x[1], reverse=True)
+
+            # Add top 3 of each rule type (or fewer if not available)
+            for chunk, cosine_score in scored[:3]:
+                if chunk.id not in seen_ids:
+                    # Create a RetrievalResult for this chunk
+                    result = RetrievalResult(
+                        chunk=chunk,
+                        final_score=cosine_score * 0.8,  # Slightly lower than regular results
+                        cosine_score=cosine_score,
+                        bm25_score=0.0,
+                        metadata_boost=1.5,  # Boosted because it's a guaranteed rule type
+                        cosine_rank=-1,  # Not from regular ranking
+                        bm25_rank=-1,
+                        rrf_score=0.0,
+                        explanation=f"[Ensured {rule_type}] Cosine: {cosine_score:.3f}"
+                    )
+                    additional_results.append(result)
+                    seen_ids.add(chunk.id)
+
+        # Step 4: Force-retrieve chunks containing mandatory rules from keyword mapping
+        forced_results = self._retrieve_forced_rule_chunks(forced_rules, seen_ids)
+        additional_results.extend(forced_results)
+
+        # Step 5: Merge results - regular first, then additional
+        merged = regular_results + additional_results
+
+        return merged
+
+    def _get_forced_rules_from_keywords(
+        self,
+        query: str,
+        story_context: Optional[StoryContext] = None
+    ) -> List[str]:
+        """
+        Check keyword-to-rule mapping and return rules that MUST be retrieved.
+
+        This implements the grounding enforcement mechanism to ensure
+        critical business rules are always cited when relevant keywords appear.
+
+        Args:
+            query: Query text.
+            story_context: Optional story context.
+
+        Returns:
+            List of rule IDs that must be included (e.g., ['FIN-REF-012', 'FIN-B2B-011']).
+        """
+        if not hasattr(self.config, 'KEYWORD_RULE_MAPPING'):
+            return []
+
+        query_lower = query.lower()
+
+        # Also include keywords from story context
+        all_text = query_lower
+        if story_context and story_context.keywords:
+            all_text += " " + " ".join(story_context.keywords).lower()
+
+        forced_rules = []
+
+        for mapping_name, mapping in self.config.KEYWORD_RULE_MAPPING.items():
+            keywords = mapping.get("keywords", [])
+            min_matches = mapping.get("min_matches", 2)
+            rules = mapping.get("rules", [])
+
+            # Count how many keywords match
+            match_count = sum(1 for kw in keywords if kw.lower() in all_text)
+
+            # If we meet the minimum match threshold, force these rules
+            if match_count >= min_matches:
+                forced_rules.extend(rules)
+
+        return list(set(forced_rules))  # Deduplicate
+
+    def _retrieve_forced_rule_chunks(
+        self,
+        rule_ids: List[str],
+        seen_ids: set
+    ) -> List[RetrievalResult]:
+        """
+        Retrieve chunks that contain specific rule IDs.
+
+        This ensures grounding enforcement - if a rule ID is required,
+        we find chunks mentioning that rule regardless of similarity score.
+
+        Args:
+            rule_ids: List of rule IDs to force-retrieve (e.g., ['FIN-REF-012']).
+            seen_ids: Set of chunk IDs already in results.
+
+        Returns:
+            List of RetrievalResults for chunks containing the forced rules.
+        """
+        if not rule_ids:
+            return []
+
+        results = []
+
+        for chunk in self.chunks:
+            if chunk.id in seen_ids:
+                continue
+
+            content_upper = chunk.content.upper()
+
+            # Check if this chunk contains any of the required rule IDs
+            for rule_id in rule_ids:
+                if rule_id in content_upper:
+                    result = RetrievalResult(
+                        chunk=chunk,
+                        final_score=0.95,  # High score - forced retrieval
+                        cosine_score=0.0,
+                        bm25_score=0.0,
+                        metadata_boost=2.0,  # Maximum boost for grounding enforcement
+                        cosine_rank=-1,
+                        bm25_rank=-1,
+                        rrf_score=0.0,
+                        explanation=f"[GROUNDING ENFORCEMENT] Contains required rule: {rule_id}"
+                    )
+                    results.append(result)
+                    seen_ids.add(chunk.id)
+                    break  # Only add chunk once even if multiple rules match
+
+        return results
+
     def close(self):
         """Close resources."""
         self.embedder.close()

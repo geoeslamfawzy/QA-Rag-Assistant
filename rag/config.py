@@ -229,6 +229,75 @@ class RAGConfig:
         "business_rule"
     ])
 
+    # ===========================================
+    # KEYWORD-TO-RULE MAPPING (GROUNDING ENFORCEMENT)
+    # ===========================================
+    # Critical rules that MUST be retrieved when specific keyword combinations appear
+    # This prevents grounding failures where the system has knowledge but fails to cite it
+
+    KEYWORD_RULE_MAPPING: Dict[str, List[str]] = field(default_factory=lambda: {
+        # Referral + Plan Switch -> FIN-REF-012
+        "referral_plan_switch": {
+            "keywords": ["referral", "plan switch", "plan change", "prepaid", "postpaid", "expire", "reward"],
+            "min_matches": 2,
+            "rules": ["FIN-REF-012", "FIN-REF-013", "FIN-REF-014", "FIN-REF-015", "FIN-B2B-011"]
+        },
+        # Invoice + Legal Info -> RULE-ADMIN-003, FIN-B2B-015
+        "invoice_legal": {
+            "keywords": ["invoice", "legal info", "legal information", "NIF", "NIS", "RC", "AI", "billing"],
+            "min_matches": 2,
+            "rules": ["RULE-ADMIN-003", "FIN-B2B-015", "FIN-B2B-016", "FIN-B2B-017"]
+        },
+        # Budget + Trip + Block -> FIN-B2B-001, FIN-B2B-005
+        "budget_trip_block": {
+            "keywords": ["budget", "trip", "block", "wallet", "balance", "limit", "insufficient"],
+            "min_matches": 2,
+            "rules": ["FIN-B2B-001", "FIN-B2B-005"]
+        },
+        # Gift Card + Revert -> FIN-GC rules
+        "gift_card_operations": {
+            "keywords": ["gift card", "voucher", "revert", "redeem", "deactivate", "remaining balance"],
+            "min_matches": 2,
+            "rules": ["FIN-GC-001", "FIN-GC-009", "FIN-GC-013"]
+        },
+        # Super Admin + Demotion/Promotion -> RULE-ADMIN-005, RULE-ADMIN-006
+        "super_admin_role": {
+            "keywords": ["super admin", "promote", "demote", "role", "permission", "demotion"],
+            "min_matches": 2,
+            "rules": ["RULE-ADMIN-005", "RULE-ADMIN-006", "RULE-USER-010", "RULE-USER-011"]
+        },
+        # Enterprise + Delete/Deactivate -> RULE-ADMIN-001, RULE-ENT-003
+        "enterprise_lifecycle": {
+            "keywords": ["enterprise", "delete", "deactivate", "activate", "inactive", "status"],
+            "min_matches": 2,
+            "rules": ["RULE-ADMIN-001", "RULE-ENT-002", "RULE-ENT-003", "RULE-ENT-013"]
+        },
+        # Payment + Commission -> FIN-B2B commission rules
+        "payment_commission": {
+            "keywords": ["payment", "commission", "19%", "charge", "fee", "percentage"],
+            "min_matches": 2,
+            "rules": ["FIN-B2B-001", "FIN-B2B-002", "FIN-B2B-003"]
+        },
+        # Top-up + Payment Proof -> FIN-B2B-004
+        "topup_proof": {
+            "keywords": ["top-up", "topup", "payment proof", "receipt", "document", "prepaid"],
+            "min_matches": 2,
+            "rules": ["FIN-B2B-004", "FIN-B2B-018", "FIN-B2B-019"]
+        },
+        # Export + Date Range -> RULE-ADMIN-008
+        "export_date_range": {
+            "keywords": ["export", "date range", "31 days", "trips", "transactions"],
+            "min_matches": 2,
+            "rules": ["RULE-ADMIN-008", "RULE-TRIP-008"]
+        },
+        # Audit + Log -> RULE-ADMIN-007
+        "audit_logging": {
+            "keywords": ["audit", "log", "activity", "transaction", "history", "record"],
+            "min_matches": 2,
+            "rules": ["RULE-ADMIN-007", "RULE-ENT-016"]
+        }
+    })
+
     def __post_init__(self):
         """Ensure paths are Path objects."""
         if isinstance(self.INDEX_DIR, str):
