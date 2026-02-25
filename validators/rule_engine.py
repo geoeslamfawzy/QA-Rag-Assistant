@@ -173,23 +173,43 @@ class RuleEngine(BaseValidator):
         self,
         knowledge_context: List[Dict[str, Any]]
     ) -> List[AtomicRule]:
-        """Load atomic rules from knowledge context."""
+        """
+        Load rules from knowledge context.
+
+        IMPORTANT: Rules can exist in multiple rule_type categories:
+        - atomic_rule: Traditional atomic business rules (RULE-XXX)
+        - financial_logic: Financial rules (FIN-XXX)
+        - state_machine: State transition rules
+        - cross_dependency: Cross-module dependency rules
+
+        This method now parses ALL rule types to prevent grounding failures
+        where critical rules like FIN-REF-012 were not being detected.
+        """
         rules = []
+
+        # Rule types that can contain parseable business rules
+        RULE_CONTAINING_TYPES = [
+            "atomic_rule",
+            "financial_logic",
+            "state_machine",
+            "cross_dependency",
+            "module"  # Some modules contain inline rules
+        ]
 
         for chunk in knowledge_context:
             metadata = chunk.get("metadata", {})
             content = chunk.get("content", "")
+            rule_type = metadata.get("rule_type", "")
 
-            if metadata.get("rule_type") != "atomic_rule":
-                continue
-
-            # Parse rules from content
-            parsed_rules = self._parse_rules(
-                content,
-                metadata.get("module", "unknown"),
-                chunk.get("id", "unknown")
-            )
-            rules.extend(parsed_rules)
+            # Parse rules from all rule-containing types
+            if rule_type in RULE_CONTAINING_TYPES or not rule_type:
+                # Parse rules from content
+                parsed_rules = self._parse_rules(
+                    content,
+                    metadata.get("module", "unknown"),
+                    chunk.get("id", "unknown")
+                )
+                rules.extend(parsed_rules)
 
         return rules
 
@@ -199,33 +219,80 @@ class RuleEngine(BaseValidator):
         module: str,
         source: str
     ) -> List[AtomicRule]:
-        """Parse atomic rules from markdown content."""
+        """
+        Parse business rules from markdown content.
+
+        Supports multiple rule ID formats:
+        - RULE-XXX-NNN: Standard atomic rules (e.g., RULE-ENT-001)
+        - FIN-XXX-NNN: Financial logic rules (e.g., FIN-REF-012, FIN-B2B-001)
+        - RULE-NNN: Legacy short format (e.g., RULE-001)
+        - DEP-XXX-NNN: Dependency rules (e.g., DEP-EP-001)
+        """
         rules = []
+        seen_rule_ids = set()
 
-        # Pattern for rule blocks
-        # Looking for: ## RULE-XXX: Name
-        rule_block_pattern = r'##\s*(RULE-\d+|[A-Z]+-\d+):\s*(.+?)(?=##\s*(?:RULE-|[A-Z]+-)\d+|$)'
+        # Pattern 1: Full format rules - FIN-XXX-NNN or RULE-XXX-NNN or DEP-XXX-NNN
+        # Example: FIN-REF-012, RULE-ENT-001, DEP-EP-001
+        full_rule_pattern = r'(?:^|\n)\s*[-*]?\s*((?:FIN|RULE|DEP)-[A-Z]{1,5}-\d{3})[:\s]+(.+?)(?=\n\s*[-*]?\s*(?:FIN|RULE|DEP)-[A-Z]{1,5}-\d{3}|$)'
+        full_matches = re.findall(full_rule_pattern, content, re.DOTALL | re.IGNORECASE)
 
-        blocks = re.findall(rule_block_pattern, content, re.DOTALL | re.IGNORECASE)
+        for rule_id, description in full_matches:
+            rule_id = rule_id.upper()
+            if rule_id not in seen_rule_ids:
+                # Determine priority based on rule content
+                priority = self._determine_priority(description.lower())
+                rules.append(AtomicRule(
+                    rule_id=rule_id,
+                    name=description.strip().split('\n')[0][:100],
+                    condition="",
+                    validation=description.strip()[:500],
+                    error_message="",
+                    priority=priority,
+                    module=module,
+                    keywords=self._extract_keywords(description),
+                    source=source
+                ))
+                seen_rule_ids.add(rule_id)
 
-        for rule_id, block_content in blocks:
-            rule = self._parse_rule_block(
-                rule_id.upper(),
-                block_content,
-                module,
-                source
-            )
-            if rule:
-                rules.append(rule)
+        # Pattern 2: Header format - ### RULE-XXX: Name or ### FIN-XXX-NNN: Name
+        header_pattern = r'###?\s*((?:FIN|RULE|DEP)-[A-Z0-9-]+)[:\s]+(.+?)(?=###?\s*(?:FIN|RULE|DEP)-|$)'
+        header_matches = re.findall(header_pattern, content, re.DOTALL | re.IGNORECASE)
 
-        # Also try simpler format: RULE-XXX in tables or lists
-        simple_pattern = r'(?:RULE|[A-Z]{2,5})-(\d+)[:\s]+(.+?)(?:\n|$)'
-        simple_matches = re.findall(simple_pattern, content)
+        for rule_id, block_content in header_matches:
+            rule_id = rule_id.upper()
+            if rule_id not in seen_rule_ids:
+                rule = self._parse_rule_block(rule_id, block_content, module, source)
+                if rule:
+                    rules.append(rule)
+                    seen_rule_ids.add(rule_id)
+
+        # Pattern 3: Critical rule marker - "CRITICAL RULE: FIN-XXX-NNN" or similar
+        critical_pattern = r'(?:CRITICAL|IMPORTANT)\s+RULE[:\s]+\*?\*?((?:FIN|RULE|DEP)-[A-Z0-9-]+)\*?\*?[:\s]*(.+?)(?=\n\n|$)'
+        critical_matches = re.findall(critical_pattern, content, re.DOTALL | re.IGNORECASE)
+
+        for rule_id, description in critical_matches:
+            rule_id = rule_id.upper()
+            if rule_id not in seen_rule_ids:
+                rules.append(AtomicRule(
+                    rule_id=rule_id,
+                    name=description.strip().split('\n')[0][:100],
+                    condition="",
+                    validation=description.strip()[:500],
+                    error_message="",
+                    priority="critical",  # Marked as critical
+                    module=module,
+                    keywords=self._extract_keywords(description),
+                    source=source
+                ))
+                seen_rule_ids.add(rule_id)
+
+        # Pattern 4: Simple format - RULE-NNN or legacy patterns
+        simple_pattern = r'(?:^|\n)\s*[-*]?\s*(?:RULE|ADMIN|USER|ENT|PROG|TRIP)-(\d+)[:\s]+(.+?)(?=\n|$)'
+        simple_matches = re.findall(simple_pattern, content, re.MULTILINE)
 
         for rule_num, description in simple_matches:
-            # Avoid duplicates
-            rule_id = f"RULE-{rule_num}"
-            if not any(r.rule_id == rule_id for r in rules):
+            rule_id = f"RULE-{rule_num.zfill(3)}"
+            if rule_id not in seen_rule_ids:
                 rules.append(AtomicRule(
                     rule_id=rule_id,
                     name=description.strip()[:100],
@@ -237,8 +304,19 @@ class RuleEngine(BaseValidator):
                     keywords=self._extract_keywords(description),
                     source=source
                 ))
+                seen_rule_ids.add(rule_id)
 
         return rules
+
+    def _determine_priority(self, content_lower: str) -> str:
+        """Determine rule priority from content."""
+        if any(word in content_lower for word in ['critical', 'must', 'required', 'immediately', 'block']):
+            return 'critical'
+        elif any(word in content_lower for word in ['high', 'important', 'expire', 'invalid']):
+            return 'high'
+        elif any(word in content_lower for word in ['low', 'optional', 'may']):
+            return 'low'
+        return 'medium'
 
     def _parse_rule_block(
         self,

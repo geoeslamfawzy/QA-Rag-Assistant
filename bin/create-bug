@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Create a Production Bug in Jira (NO parent, Issue Type: Bug)
+#
+# Usage: ./bin/create-bug --module GiftCard --env prod --platform WebApp --priority p1
+#
+# Required: --module
+# Optional: --env (preprod|staging|prod), --platform (WebApp|iOS|Android|SuperApp), --priority (p0|p1|p2|p3)
+#
+# Rules:
+# - Issue Type: Bug
+# - NO parent field
+# - Labels optional
+# - Summary prefix optional
+#
+# Interactive prompt: "Enter defect description:" (used as seed for auto-generated fields)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$SCRIPT_DIR"
+exec "$SCRIPT_DIR/venv/bin/python3" main.py create-bug "$@"

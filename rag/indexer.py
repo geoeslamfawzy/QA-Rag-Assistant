@@ -370,6 +370,10 @@ class IndexBuilder:
         keywords = self._extract_keywords(body)
         base_metadata["keywords"] = keywords
 
+        # Extract rule IDs from entire document (file-level)
+        file_rule_ids = self._extract_rule_ids(body)
+        base_metadata["file_rule_ids"] = file_rule_ids
+
         # Chunk the document
         raw_chunks = self.chunk_document(body, file_path)
 
@@ -380,10 +384,14 @@ class IndexBuilder:
         for i, chunk_data in enumerate(raw_chunks):
             chunk_id = f"{relative_path.stem}/{chunk_data['header'].lower().replace(' ', '_')}_{i}"
 
+            # Extract rule IDs specific to this chunk's content
+            chunk_rule_ids = self._extract_rule_ids(chunk_data["content"])
+
             chunk_metadata = {
                 **base_metadata,
                 "header": chunk_data["header"],
-                "section_index": chunk_data["section_index"]
+                "section_index": chunk_data["section_index"],
+                "rule_ids": chunk_rule_ids,  # Chunk-specific rule IDs
             }
 
             doc_chunk = DocumentChunk(
@@ -394,6 +402,23 @@ class IndexBuilder:
             doc_chunks.append(doc_chunk)
 
         return doc_chunks
+
+    def _extract_rule_ids(self, content: str) -> List[str]:
+        """
+        Extract RULE-XXX-NNN identifiers from content.
+
+        Matches patterns like RULE-ENT-001, RULE-PAY-015, RULE-REF-007, etc.
+
+        Args:
+            content: Text content to search.
+
+        Returns:
+            List of unique rule IDs found.
+        """
+        # Match RULE-XXX-NNN pattern (2-5 uppercase letters, 3 digits)
+        pattern = r'RULE-[A-Z]{2,5}-\d{3}'
+        matches = re.findall(pattern, content)
+        return list(set(matches))  # Return unique rule IDs
 
     def _extract_keywords(self, content: str, max_keywords: int = 20) -> List[str]:
         """
@@ -469,6 +494,19 @@ class IndexBuilder:
                 continue
 
         print(f"Created {total_chunks} chunks from {len(files)} documents")
+
+        # Log chunk statistics by rule_type
+        rule_type_counts = {}
+        total_rule_ids = 0
+        for chunk in self.chunks:
+            rt = chunk.metadata.get("rule_type", "unknown")
+            rule_type_counts[rt] = rule_type_counts.get(rt, 0) + 1
+            total_rule_ids += len(chunk.metadata.get("rule_ids", []))
+
+        print("  Chunks by rule_type:")
+        for rt, count in sorted(rule_type_counts.items()):
+            print(f"    {rt}: {count}")
+        print(f"  Total rule IDs extracted: {total_rule_ids}")
 
         # Generate embeddings
         print("Generating embeddings...")

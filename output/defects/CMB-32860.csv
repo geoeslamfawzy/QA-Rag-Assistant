@@ -1,24 +1,28 @@
 "Summary","Description","Issue Type","Priority","Components","Labels","Sprint","Parent"
-"Missing logout acceptance criteria","Preconditions:
+"Business Rule Violation: [CMB-32860] [ADMINPANEL] Payment Section","Preconditions:
 Story CMB-32860 exists in backlog
 User has access to payments, b2b_pricing, admin_panel module(s)
 
 Description:
-No AC defined for logout flow
+Rule matching completed
+Validation Score: 100%
 
 Steps to Reproduce:
 1. Open story CMB-32860 in Jira
-2. Navigate to acceptance criteria section
-3. Observe that no acceptance criteria are defined
+2. Review the story description and acceptance criteria
+3. Compare against knowledge base rules and constraints
+4. Observe the violation in the defined requirements
 
 Expected Results:
-Story should have clear, testable acceptance criteria that define:
-- Success conditions
-- Edge cases to handle
-- Error scenarios
+Story should comply with all applicable business rules.
 
 Actual Results:
-Acceptance criteria field is empty or insufficient.
+[info] No atomic rules found in knowledge context
 
 Environment:
-Yassir Mobility B2B Platform","Defect","Highest","Payments","Regression-testing,regression-testing","Defects/Bugs/Imp","CMB-32860"
+Yassir Mobility B2B Platform
+
+Related Rules:
+- payments/admin_panel:_payments_tab_2
+- payments/api_endpoints_7
+- payments/overview_0","Defect","Highest","Payments","Regression-testing,regression-testing","Defects/Bugs/Imp",""
