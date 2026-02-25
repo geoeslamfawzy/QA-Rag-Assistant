@@ -10,6 +10,7 @@ from .analysis_service import AnalysisService
 from .test_case_service import TestCaseService
 from .rag_context_builder import RAGContextBuilder, RAGContext
 from .qa_command_service import QACommandService, QACommandType
+from .jira_comment_service import JiraCommentService, CommentType, CommentPostResult
 
 __all__ = [
     'OutputWriter',
@@ -19,4 +20,7 @@ __all__ = [
     'RAGContext',
     'QACommandService',
     'QACommandType',
+    'JiraCommentService',
+    'CommentType',
+    'CommentPostResult',
 ]

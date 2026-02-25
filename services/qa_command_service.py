@@ -4,6 +4,7 @@ QA Command Service Module
 Unified orchestrator for QA-specific commands.
 All commands share RAGContextBuilder pipeline and template-based output.
 Defect commands now export Jira-ready CSV files.
+Supports --post flag for posting findings as Jira comments.
 """
 from typing import Optional, Dict, Any
 from enum import Enum
@@ -11,6 +12,7 @@ from pathlib import Path
 
 from builders import DefectBuilder, DefectBuildOptions
 from exporters import DefectCSVExporter, StoryDefectCSVExporter
+from jira_client import JiraClient
 from models.defect import Defect
 from services.rag_context_builder import RAGContextBuilder, RAGContext
 from services.output_writer import OutputWriter
@@ -38,15 +40,18 @@ class QACommandService:
     - Single entry point for all 4 commands
     - Delegates to templates for output formatting
     - No duplication of retrieval/validation logic
+    - Supports --post flag for Jira comment posting
     """
 
     def __init__(
         self,
         rag_builder: RAGContextBuilder,
         writer: OutputWriter,
+        jira_client: Optional[JiraClient] = None,
     ):
         self._rag_builder = rag_builder
         self._writer = writer
+        self._jira_client = jira_client
 
         # Defect building and export
         self._defect_builder = DefectBuilder()
@@ -112,13 +117,43 @@ class QACommandService:
         return writers[command_type](issue_key, content)
 
     # Convenience methods for each command
-    def review(self, issue_key: str) -> Optional[Dict[str, Any]]:
-        """Review test cases and detect coverage gaps."""
-        return self.execute(QACommandType.REVIEW, issue_key)
+    def review(
+        self,
+        issue_key: str,
+        post_comment: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Review test cases and detect coverage gaps.
 
-    def get_ambiguity(self, issue_key: str) -> Optional[Dict[str, Any]]:
-        """Detect unclear requirements."""
-        return self.execute(QACommandType.AMBIGUITY, issue_key)
+        Args:
+            issue_key: Jira issue key
+            post_comment: If True, RAG context is included for comment posting
+
+        Returns:
+            Result dict with saved_path and optionally rag_context
+        """
+        result = self.execute(QACommandType.REVIEW, issue_key)
+        # rag_context is already included in execute() return value
+        return result
+
+    def get_ambiguity(
+        self,
+        issue_key: str,
+        post_comment: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Detect unclear requirements.
+
+        Args:
+            issue_key: Jira issue key
+            post_comment: If True, RAG context is included for comment posting
+
+        Returns:
+            Result dict with saved_path and optionally rag_context
+        """
+        result = self.execute(QACommandType.AMBIGUITY, issue_key)
+        # rag_context is already included in execute() return value
+        return result
 
     def write_story_defect(
         self,

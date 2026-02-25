@@ -13,7 +13,15 @@ from rich.panel import Panel
 from jira_client import JiraClient
 from analyzer import IssueAnalyzer
 from display import IssueDisplay, AnalysisDisplay
-from services import OutputWriter, AnalysisService, TestCaseService, RAGContextBuilder, QACommandService
+from services import (
+    OutputWriter,
+    AnalysisService,
+    TestCaseService,
+    RAGContextBuilder,
+    QACommandService,
+    JiraCommentService,
+    CommentType,
+)
 
 console = Console()
 
@@ -43,6 +51,7 @@ def main():
 
     analyze_parser = subparsers.add_parser('analyze', help='Analyze issues')
     analyze_parser.add_argument('issue_key', type=str, nargs='?', help='Issue key (optional)')
+    analyze_parser.add_argument('--post', action='store_true', help='Post findings as Jira comment')
 
     story_parser = subparsers.add_parser('story', help='Analyze a story (description and AC)')
     story_parser.add_argument('issue_key', type=str, help='Story key (e.g., PROJ-123)')
@@ -53,9 +62,11 @@ def main():
     # New QA commands using shared RAG pipeline
     review_parser = subparsers.add_parser('review', help='Review test coverage and detect gaps')
     review_parser.add_argument('issue_key', type=str, help='Story key (e.g., PROJ-123)')
+    review_parser.add_argument('--post', action='store_true', help='Post findings as Jira comment')
 
     ambiguity_parser = subparsers.add_parser('get-ambiguity', help='Detect unclear requirements')
     ambiguity_parser.add_argument('issue_key', type=str, help='Story key (e.g., PROJ-123)')
+    ambiguity_parser.add_argument('--post', action='store_true', help='Post findings as Jira comment')
 
     story_defect_parser = subparsers.add_parser('write-story-defect', help='Generate defect for requirement issue')
     story_defect_parser.add_argument('issue_key', type=str, help='Story key (e.g., PROJ-123)')
@@ -117,10 +128,13 @@ def main():
     analysis_service = AnalysisService(client, analyzer, writer, rag_builder=rag_builder)
     tc_service = TestCaseService(client, writer, rag_builder=rag_builder)
 
+    # Initialize Jira comment service for --post functionality
+    comment_service = JiraCommentService(client)
+
     # Initialize QA command service for new commands (review, get-ambiguity, write-*-defect)
     qa_service = None
     if rag_builder:
-        qa_service = QACommandService(rag_builder, writer)
+        qa_service = QACommandService(rag_builder, writer, client)
 
     if args.command == 'list':
         handle_list(client, analysis_service, issue_display, analysis_display, args)
@@ -129,14 +143,14 @@ def main():
     elif args.command == 'comment':
         handle_comment(client, args)
     elif args.command in ('analyze', 'story'):
-        handle_analyze(analysis_service, issue_display, analysis_display, args)
+        handle_analyze(analysis_service, comment_service, issue_display, analysis_display, args)
 
     elif args.command == 'generate-tc':
         handle_generate_tc(tc_service, args)
     elif args.command == 'review':
-        handle_review(qa_service, args)
+        handle_review(qa_service, comment_service, args)
     elif args.command == 'get-ambiguity':
-        handle_get_ambiguity(qa_service, args)
+        handle_get_ambiguity(qa_service, comment_service, args)
     elif args.command == 'write-story-defect':
         handle_write_story_defect(qa_service, args)
     elif args.command == 'write-defect':
@@ -189,8 +203,9 @@ def handle_comment(client, args):
     client.add_comment(args.issue_key, comment_text)
 
 
-def handle_analyze(analysis_service, issue_display, analysis_display, args):
+def handle_analyze(analysis_service, comment_service, issue_display, analysis_display, args):
     if args.issue_key:
+        post_comment = getattr(args, 'post', False)
         result = analysis_service.analyze_story(args.issue_key)
         if not result:
             console.print(f"[red]Issue {args.issue_key} not found[/red]")
@@ -198,6 +213,18 @@ def handle_analyze(analysis_service, issue_display, analysis_display, args):
         issue_display.display_issue_details(result['issue'])
         analysis_display.display_story_analysis(result['analysis'], args.issue_key)
         console.print(f"[green]✓[/green] Analysis written to [bold]{result['saved_path']}[/bold]")
+
+        # Handle --post flag
+        if post_comment and result.get('rag_context'):
+            comment_result = comment_service.post_comment(
+                args.issue_key,
+                result['rag_context'],
+                CommentType.ANALYZE,
+            )
+            if comment_result.success:
+                console.print(f"[green]✓[/green] Comment posted to Jira ({comment_result.finding_count} findings)")
+            else:
+                console.print(f"[yellow]⚠[/yellow] Failed to post comment: {comment_result.error}")
     else:
         result = analysis_service.analyze_bulk(args.jql, args.limit)
         if result:
@@ -218,34 +245,60 @@ def handle_generate_tc(tc_service, args):
     console.print(f"[dim]Risk level: {result.get('risk_level', 'MEDIUM')} | Test cases: {len(result.get('test_cases', []))}[/dim]")
 
 
-def handle_review(qa_service, args):
+def handle_review(qa_service, comment_service, args):
     """Handle the review command - analyze test coverage gaps."""
     if not qa_service:
         console.print("[red]Error: RAG context builder not available[/red]")
         console.print("[yellow]This command requires the RAG pipeline to be initialized.[/yellow]")
         return
 
+    post_comment = getattr(args, 'post', False)
     console.print(f"[cyan]Reviewing test coverage for {args.issue_key}...[/cyan]")
-    result = qa_service.review(args.issue_key)
+    result = qa_service.review(args.issue_key, post_comment=post_comment)
     if not result:
         console.print(f"[red]Issue {args.issue_key} not found[/red]")
         return
     console.print(f"[green]✓[/green] Review written to [bold]{result['saved_path']}[/bold]")
 
+    # Handle --post flag
+    if post_comment and result.get('rag_context'):
+        comment_result = comment_service.post_comment(
+            args.issue_key,
+            result['rag_context'],
+            CommentType.REVIEW,
+        )
+        if comment_result.success:
+            console.print(f"[green]✓[/green] Comment posted to Jira ({comment_result.finding_count} findings)")
+        else:
+            console.print(f"[yellow]⚠[/yellow] Failed to post comment: {comment_result.error}")
 
-def handle_get_ambiguity(qa_service, args):
+
+def handle_get_ambiguity(qa_service, comment_service, args):
     """Handle the get-ambiguity command - detect unclear requirements."""
     if not qa_service:
         console.print("[red]Error: RAG context builder not available[/red]")
         console.print("[yellow]This command requires the RAG pipeline to be initialized.[/yellow]")
         return
 
+    post_comment = getattr(args, 'post', False)
     console.print(f"[cyan]Analyzing ambiguities for {args.issue_key}...[/cyan]")
-    result = qa_service.get_ambiguity(args.issue_key)
+    result = qa_service.get_ambiguity(args.issue_key, post_comment=post_comment)
     if not result:
         console.print(f"[red]Issue {args.issue_key} not found[/red]")
         return
     console.print(f"[green]✓[/green] Ambiguity analysis written to [bold]{result['saved_path']}[/bold]")
+
+    # Handle --post flag
+    if post_comment and result.get('rag_context'):
+        comment_result = comment_service.post_comment(
+            args.issue_key,
+            result['rag_context'],
+            CommentType.AMBIGUITY,
+        )
+        if comment_result.success:
+            console.print(f"[green]✓[/green] Comment posted to Jira ({comment_result.finding_count} findings)")
+        else:
+            console.print(f"[yellow]⚠[/yellow] Failed to post comment: {comment_result.error}")
 
 
 def handle_write_story_defect(qa_service, args):

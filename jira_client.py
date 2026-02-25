@@ -77,6 +77,30 @@ class JiraClient:
             logger.error("Error adding comment: %s", e)
             return False
 
+    def post_comment(self, issue_key: str, comment: str) -> bool:
+        """
+        Post a formatted comment to a Jira issue.
+
+        Wrapper around add_comment with additional validation.
+        Used by JiraCommentService for posting QA results.
+
+        Args:
+            issue_key: Jira issue key (e.g., CMB-123)
+            comment: Comment text (supports Jira wiki markup)
+
+        Returns:
+            True if posted successfully, False otherwise
+        """
+        if not comment or not comment.strip():
+            logger.warning("Attempted to post empty comment to %s", issue_key)
+            return False
+
+        if not issue_key or not issue_key.strip():
+            logger.warning("Invalid issue key provided for comment posting")
+            return False
+
+        return self.add_comment(issue_key, comment)
+
     def update_issue(self, issue_key: str, fields: Dict[str, Any]) -> bool:
         """Update issue fields. Returns True on success."""
         try:
