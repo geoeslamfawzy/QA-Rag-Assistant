@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Run: ./bin/create-defect --summary "Bug" --module GiftCard --env preprod --browser chrome --priority p1
+# With AI: ./bin/create-defect --summary "user cant login sso error 500" --module Login --ai
+#
+# Required: --summary, --module
+# Optional: --env (preprod|staging), --browser (chrome|superapp), --priority (p0|p1|p2|p3), --story, --ai
+#
+# --ai flag: Uses Ollama (local LLM) to generate professional summary and description
+#            Requires: ollama serve (running) + ollama pull mistral (model installed)
+#
+# Output Summary: [Regression][Preprod][Chrome][Payment] Payment fails
+# Output Description: Structured with Precondition, Steps, Expected/Actual Results, Environment
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$SCRIPT_DIR"
+exec "$SCRIPT_DIR/venv/bin/python3" main.py create-defect "$@"

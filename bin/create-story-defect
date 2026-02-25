@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Create a Bug under a User Story (HAS parent, NO labels, NO prefix)
+#
+# Usage: ./bin/create-story-defect CMB-32860 --priority p1
+#        ./bin/create-story-defect CMB-32860 --module GiftCard
+#
+# Required: parent_key (positional argument)
+# Optional: --module (auto-detected from story if omitted), --priority (p0|p1|p2|p3)
+#
+# Rules:
+# - Issue Type: Bug
+# - MUST have parent field
+# - NO labels
+# - NO prefix in summary - clean professional title only
+#
+# Interactive prompt: "Enter defect description:" (used as seed for auto-generated fields)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$SCRIPT_DIR"
+exec "$SCRIPT_DIR/venv/bin/python3" main.py create-story-defect "$@"

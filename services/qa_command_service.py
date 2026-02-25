@@ -5,6 +5,7 @@ Unified orchestrator for QA-specific commands.
 All commands share RAGContextBuilder pipeline and template-based output.
 Defect commands now export Jira-ready CSV files.
 Supports --post flag for posting findings as Jira comments.
+Supports --jira flag for creating defects directly in Jira with separate fields.
 """
 from typing import Optional, Dict, Any
 from enum import Enum
@@ -16,6 +17,7 @@ from jira_client import JiraClient
 from models.defect import Defect
 from services.rag_context_builder import RAGContextBuilder, RAGContext
 from services.output_writer import OutputWriter
+from services.jira_defect_creator import JiraDefectCreator, JiraDefectResult
 from templates import (
     ReviewTemplate,
     AmbiguityTemplate,
@@ -57,6 +59,11 @@ class QACommandService:
         self._defect_builder = DefectBuilder()
         self._defect_csv_exporter = DefectCSVExporter()
         self._story_defect_csv_exporter = StoryDefectCSVExporter()
+
+        # Jira defect creator for --jira flag
+        self._jira_defect_creator: Optional[JiraDefectCreator] = None
+        if jira_client:
+            self._jira_defect_creator = JiraDefectCreator(jira_client)
 
         # Template registry - maps command type to template instance
         self._templates = {
@@ -161,6 +168,8 @@ class QACommandService:
         issue_type: str = "missing_ac",
         export_csv: bool = True,
         export_markdown: bool = True,
+        create_in_jira: bool = False,
+        priority: Optional[str] = None,
         custom_summary: Optional[str] = None,
         custom_description: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
@@ -172,11 +181,14 @@ class QACommandService:
             issue_type: Type of issue (missing_ac, unclear_requirement, incomplete_story)
             export_csv: Whether to export Jira-ready CSV (default: True)
             export_markdown: Whether to export markdown (default: True)
+            create_in_jira: Whether to create defect in Jira (default: False)
+            priority: Priority level for Jira (p0, p1, p2, p3)
             custom_summary: Custom defect summary (overrides auto-generated)
             custom_description: Custom defect description (overrides auto-generated)
 
         Returns:
-            Result dict with csv_path, md_path (optional), defect, or None if not found
+            Result dict with csv_path, md_path (optional), defect,
+            jira_result (if create_in_jira), or None if not found
         """
         # Step 1: Build RAG context
         rag_context = self._rag_builder.build(issue_key)
@@ -215,6 +227,15 @@ class QACommandService:
             if not export_csv:
                 result["saved_path"] = md_path
 
+        # Step 5: Create in Jira if requested
+        if create_in_jira and self._jira_defect_creator:
+            jira_result = self._jira_defect_creator.create(
+                defect=defect,
+                story_key=issue_key,
+                priority=priority,
+            )
+            result["jira_result"] = jira_result
+
         return result
 
     def write_defect(
@@ -223,6 +244,8 @@ class QACommandService:
         violation_type: str = "rule",
         export_csv: bool = True,
         export_markdown: bool = True,
+        create_in_jira: bool = False,
+        priority: Optional[str] = None,
         custom_summary: Optional[str] = None,
         custom_description: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
@@ -234,11 +257,14 @@ class QACommandService:
             violation_type: Type of violation (rule, state, financial, cross_dep)
             export_csv: Whether to export Jira-ready CSV (default: True)
             export_markdown: Whether to export markdown (default: True)
+            create_in_jira: Whether to create defect in Jira (default: False)
+            priority: Priority level for Jira (p0, p1, p2, p3)
             custom_summary: Custom defect summary (overrides auto-generated)
             custom_description: Custom defect description (overrides auto-generated)
 
         Returns:
-            Result dict with csv_path, md_path (optional), defect, or None if not found
+            Result dict with csv_path, md_path (optional), defect,
+            jira_result (if create_in_jira), or None if not found
         """
         # Step 1: Build RAG context
         rag_context = self._rag_builder.build(issue_key)
@@ -276,5 +302,14 @@ class QACommandService:
             result["md_path"] = md_path
             if not export_csv:
                 result["saved_path"] = md_path
+
+        # Step 5: Create in Jira if requested
+        if create_in_jira and self._jira_defect_creator:
+            jira_result = self._jira_defect_creator.create(
+                defect=defect,
+                story_key=issue_key,
+                priority=priority,
+            )
+            result["jira_result"] = jira_result
 
         return result
