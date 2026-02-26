@@ -11,10 +11,10 @@
 ## Violation Summary
 
 **Validator:** RuleEngine
-**Score:** 100%
-**Status:** PASS
+**Score:** 26%
+**Status:** FAIL
 
-Rule matching completed
+Matched 31/44 rules (coverage: 26%)
 
 ---
 
@@ -33,53 +33,105 @@ Rule matching completed
 #### Finding 1
 
 - **Severity:** info
-- **Message:** No atomic rules found in knowledge context
+- **Message:** Matched rule: RULE-PAY-010 - Invoice generated at month end
+- **Rule ID:** RULE-PAY-010
+
+#### Finding 2
+
+- **Severity:** info
+- **Message:** Matched rule: RULE-ADMIN-004 - Single Super Admin per enterprise
+- **Rule ID:** RULE-ADMIN-004
+
+#### Finding 3
+
+- **Severity:** info
+- **Message:** Matched rule: RULE-PAY-020 - Commission displayed separately on invoice
+- **Rule ID:** RULE-PAY-020
+
+#### Finding 4
+
+- **Severity:** info
+- **Message:** Matched rule: RULE-ENT-004 - Phone Number Uniqueness
+- **Rule ID:** RULE-ENT-004
+
+#### Finding 5
+
+- **Severity:** info
+- **Message:** Matched rule: RULE-ADMIN-003 - Legal info required for invoice generation
+- **Rule ID:** RULE-ADMIN-003
+
+#### Finding 6
+
+- **Severity:** warning
+- **Message:** Critical rule not covered: RULE-TRIP-014 - Commission Calculation
+- **Rule ID:** RULE-TRIP-014
+
+#### Finding 7
+
+- **Severity:** warning
+- **Message:** Low rule coverage: 26%
+
+### Additional Details
+
+- **total_rules:** 44
+- **matched_rules:** 31
+- **coverage_score:** 0.25500264765675723
+**matched_rule_details:**
+- {'rule_id': 'RULE-PAY-010', 'name': 'Invoice generated at month end', 'relevance': 0.6166666666666666, 'matched_keywords': ['invoice', 'month']}
+- {'rule_id': 'RULE-ADMIN-004', 'name': 'Single Super Admin per enterprise', 'relevance': 0.5, 'matched_keywords': ['management', 'user', 'admin']}
+- {'rule_id': 'RULE-PAY-020', 'name': 'Commission displayed separately on invoice', 'relevance': 0.5, 'matched_keywords': ['displayed', 'invoice']}
+- {'rule_id': 'RULE-ENT-004', 'name': 'Phone Number Uniqueness', 'relevance': 0.49, 'matched_keywords': ['another', 'business', 'user', 'update', 'already']}
+- {'rule_id': 'RULE-ADMIN-003', 'name': 'Legal info required for invoice generation', 'relevance': 0.43999999999999995, 'matched_keywords': ['invoice']}
 
 ---
 
 ## Evidence from Knowledge Base
 
-### payments/admin_panel:_payments_tab_2
-*Module: payments | Relevance: 75%*
+### enterprise_rules/account_lifecycle_rules_0
+*Module: enterprises | Relevance: 55%*
 
-> ## Admin Panel: Payments Tab
+> ## Account Lifecycle Rules
 
-### Invoice Management
+### RULE-ENT-001: Single Super Admin Policy
+**Condition:** Enterprise account registration or admin promotion
+**Validation:** Only ONE user can hold Super Admin role per enterprise
+**Error:** "Enterprise already has a Super Admin. Demote existing before promotion."
+**Priority:** Critical
 
-**Invoice History Dashboard:**
-- Monthly cards (November 2025, October 2025, etc.)
-- Status: Paid (Green), Unpaid (Red)
-- Payment Date display
-- Filter: All/Paid/Unpaid invoices
+### RULE-ENT-002: Account Activation Requirement
+**Condition:** User attempts dash...
 
-**Manual Invoice Generation:**
-- "Generate an invoice" button
-- Triggers email to registered Super Admin
-- Email subject: "Yassir Business Invoice"
-- Attachment: Stand...
+### program_rules/program_lifecycle_rules_0
+*Module: programs | Relevance: 55%*
 
-### payments/api_endpoints_7
-*Module: payments | Relevance: 75%*
+> ## Program Lifecycle Rules
 
-> ## API Endpoints
+### RULE-PROG-001: Group Requirement for Access
+**Condition:** User attempts program access
+**Validation:** User must belong to a group assigned to the program
+**Error:** "You must be assigned to a group to access this program."
+**Priority:** High
 
-### B2B Portal
-- `GET /api/payments/balance` - Get wallet balance
-- `POST /api/payments/topup` - Top up wallet
-- `GET /api/payments/invoices` - List invoices
-- `GET /api/payments/invoices/{id}` - Invoice details
-- `GET /api/payments/plan` - Current payment plan
+### RULE-PROG-002: Deactivation Group Transfer
+**Condition:** Program deactivation request
+**Validation:** If program has a...
 
-### Admin Panel
-- `GET /api/admin/enterprises/{id}/payments` - Payment info
-- `POST /api/admin/enterprises/{id}/payment...
+### trip_rules/financial_rules_2
+*Module: trips | Relevance: 53%*
 
-### payments/overview_0
-*Module: payments | Relevance: 72%*
+> ## Financial Rules
 
-> ## Overview
+### RULE-TRIP-010: Prepaid Deduction
+**Condition:** Trip completed (FINISHED)
+**Validation:** Trip cost deducted from enterprise wallet
+**Error:** N/A (automatic deduction)
+**Priority:** Critical
 
-The Payments module manages all financial transactions for B2B clients, including prepaid wallet management, postpaid billing cycles, invoice generation, and payment reconciliation.
+### RULE-TRIP-011: Postpaid Accrual
+**Condition:** Trip completed (FINISHED)
+**Validation:** Trip cost added to monthly accrual
+**Error:** N/A (automatic accrual)
+**Priority:** Critic...
 
 ---
 
@@ -107,11 +159,11 @@ The Payments module manages all financial transactions for B2B clients, includin
 
 ### Validator Suggestions
 
-- Define what happens when payment fails
-- Use outbox pattern or idempotent notifications
+- Consider defining receipt/confirmation
 - Consider defining retry logic
-- Consider async payment processing for reliability
-- Add financial rules to knowledge base for validation
+- Ensure story covers: ** Trip cost display/calculation
+- Define what happens when prepaid_billing fails
+- Story may be missing important business rules
 
 ---
 
@@ -132,4 +184,4 @@ The Payments module manages all financial transactions for B2B clients, includin
 ---
 
 *Generated by QA RAG System*
-*Timestamp: 2026-02-25 13:56:21*
+*Timestamp: 2026-02-25 23:47:52*

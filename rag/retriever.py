@@ -698,25 +698,6 @@ class HybridRetriever:
         self.embedder.close()
 
 
-# Convenience functions
-
-def quick_retrieve(query: str, top_k: int = 5) -> List[RetrievalResult]:
-    """
-    Quick retrieval without creating a context.
-
-    Args:
-        query: Query text.
-        top_k: Number of results.
-
-    Returns:
-        List of retrieval results.
-    """
-    retriever = HybridRetriever()
-    results = retriever.retrieve(query, top_k=top_k)
-    retriever.close()
-    return results
-
-
 if __name__ == "__main__":
     # Quick test
     print("Testing Hybrid Retriever...")

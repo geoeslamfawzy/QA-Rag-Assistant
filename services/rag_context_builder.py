@@ -12,9 +12,23 @@ This module now includes grounding verification that ensures:
 1. Critical business rules are retrieved based on keyword matching
 2. Retrieved context contains required rule citations
 3. Outputs are validated for domain-specific grounding
+
+DETERMINISTIC QA BRAIN v2.0:
+Extended with QA Intelligence Layer for:
+1. Rule dependency tracking and expansion
+2. Coverage validation with strict mode
+3. Deterministic output generation with reasoning chains
+4. Ambiguity detection engine
+5. Gap analysis
+6. Scenario expansion
+7. Risk-based test design
+8. Defect intelligence
+9. Knowledge gap detection
 """
 import re
+import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict, Any, List, Optional, Set
 
 from jira_client import JiraClient
@@ -31,7 +45,30 @@ from validators import (
     FinancialValidator,
     RuleEngine,
     CrossDepChecker,
+    CoverageValidator,
+    CoverageResult,
 )
+
+# Deterministic QA Brain imports
+from models.required_rule_set import RequiredRuleSet
+from models.test_case import TestCase
+from models.defect import Defect
+from models.ambiguity import AmbiguityReport
+from models.gap import GapReport
+from core.rule_graph import RuleDependencyGraph
+from core.rule_loader import RuleLoader
+from core.rule_set_builder import RuleSetBuilder
+from services.deterministic_generator import DeterministicGenerator, DeterministicOutput
+
+# QA Intelligence v2.0 imports
+from qa_intelligence.ambiguity_engine import AmbiguityEngine
+from qa_intelligence.gap_analyzer import GapAnalyzer
+from qa_intelligence.scenario_expander import ScenarioExpander, TestScenario
+from qa_intelligence.risk_based_test_designer import RiskBasedTestDesigner
+from qa_intelligence.defect_engine import DefectEngine
+from qa_intelligence.knowledge_gap_detector import KnowledgeGapDetector, KnowledgeGapReport
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -57,13 +94,26 @@ class GroundingVerification:
 
 @dataclass
 class RAGContext:
-    """Complete RAG context for a story."""
+    """Complete RAG context for a story (v2.0)."""
     story: Dict[str, Any]
     pre_analysis: PreAnalysisResult
     retrieved_chunks: List[RetrievalResult]
     validation_results: Dict[str, Any]
     knowledge_context: List[Dict[str, Any]]
     grounding: Optional[GroundingVerification] = None  # Grounding verification result
+
+    # Deterministic QA Brain fields
+    required_rules: Optional[RequiredRuleSet] = None
+    coverage_result: Optional[CoverageResult] = None
+    deterministic_output: Optional[DeterministicOutput] = None
+
+    # QA Intelligence v2.0 fields
+    ambiguity_report: Optional[AmbiguityReport] = None
+    gap_report: Optional[GapReport] = None
+    test_scenarios: Optional[List[TestScenario]] = None
+    test_cases: Optional[List[TestCase]] = None
+    generated_defects: Optional[List[Defect]] = None
+    knowledge_gap_report: Optional[KnowledgeGapReport] = None
 
 
 class RAGContextBuilder:
@@ -75,13 +125,18 @@ class RAGContextBuilder:
     2. Pre-analyze story (detect intents, domains, risks)
     3. Retrieve relevant knowledge chunks (hybrid retrieval)
     4. Run validators (state, financial, rule, cross-dep)
-    5. Return complete RAGContext
+    5. Build required rule set (Deterministic QA Brain)
+    6. Validate coverage
+    7. Generate deterministic output
+    8. Run QA Intelligence v2.0 analysis
+    9. Return complete RAGContext
 
     Usage:
         builder = RAGContextBuilder()
         context = builder.build("CMB-32860")
         if context:
             # Use context.story, context.retrieved_chunks, etc.
+            # v2.0: context.ambiguity_report, context.gap_report, etc.
         builder.close()
     """
 
@@ -90,6 +145,7 @@ class RAGContextBuilder:
         jira_client: Optional[JiraClient] = None,
         retriever: Optional[HybridRetriever] = None,
         pre_analyzer: Optional[StoryPreAnalyzer] = None,
+        enable_deterministic: bool = True,
     ):
         """
         Initialize the RAG context builder.
@@ -98,6 +154,7 @@ class RAGContextBuilder:
             jira_client: Optional JiraClient instance (creates new if not provided)
             retriever: Optional HybridRetriever instance (creates new if not provided)
             pre_analyzer: Optional StoryPreAnalyzer instance (creates new if not provided)
+            enable_deterministic: Enable deterministic QA brain features (default: True)
         """
         self._jira = jira_client or JiraClient()
         self._retriever = retriever or HybridRetriever()
@@ -109,12 +166,94 @@ class RAGContextBuilder:
             CrossDepChecker(),
         ])
         self._index_loaded = False
+        self._enable_deterministic = enable_deterministic
+
+        # Initialize Deterministic QA Brain components
+        self._rule_graph: Optional[RuleDependencyGraph] = None
+        self._rule_set_builder: Optional[RuleSetBuilder] = None
+        self._coverage_validator: Optional[CoverageValidator] = None
+        self._deterministic_generator: Optional[DeterministicGenerator] = None
+
+        # QA Intelligence v2.0 engines
+        self._ambiguity_engine: Optional[AmbiguityEngine] = None
+        self._gap_analyzer: Optional[GapAnalyzer] = None
+        self._scenario_expander: Optional[ScenarioExpander] = None
+        self._test_designer: Optional[RiskBasedTestDesigner] = None
+        self._defect_engine: Optional[DefectEngine] = None
+        self._knowledge_gap_detector: Optional[KnowledgeGapDetector] = None
+
+        if enable_deterministic:
+            self._init_deterministic_components()
+            self._init_qa_intelligence_v2()
 
     def _ensure_index_loaded(self) -> bool:
         """Ensure the retriever has loaded the index."""
         if not self._index_loaded:
             self._index_loaded = self._retriever.load_index()
         return self._index_loaded
+
+    def _init_deterministic_components(self) -> None:
+        """
+        Initialize Deterministic QA Brain components.
+
+        Loads rules from knowledge base and builds the rule dependency graph.
+        """
+        try:
+            # Load rules from knowledge base
+            kb_path = Path(DEFAULT_CONFIG.KNOWLEDGE_BASE_DIR)
+            rule_loader = RuleLoader(kb_path)
+            rules = rule_loader.load_all_rules()
+
+            # Build rule dependency graph
+            self._rule_graph = RuleDependencyGraph()
+            self._rule_graph.build_from_rules(rules)
+
+            # Initialize builders and validators
+            self._rule_set_builder = RuleSetBuilder(self._rule_graph)
+            self._coverage_validator = CoverageValidator(
+                strict_mode=DEFAULT_CONFIG.STRICT_MODE
+            )
+            self._deterministic_generator = DeterministicGenerator(
+                self._rule_graph,
+                strict_mode=DEFAULT_CONFIG.STRICT_MODE
+            )
+
+            logger.info(
+                f"Deterministic QA Brain initialized: "
+                f"{len(self._rule_graph)} rules loaded"
+            )
+
+        except Exception as e:
+            logger.warning(
+                f"Failed to initialize deterministic components: {e}. "
+                "Falling back to basic RAG mode."
+            )
+            self._enable_deterministic = False
+
+    def _init_qa_intelligence_v2(self) -> None:
+        """
+        Initialize QA Intelligence v2.0 engines.
+
+        All engines are deterministic - no randomness or probabilistic sampling.
+        """
+        try:
+            if self._rule_graph:
+                self._ambiguity_engine = AmbiguityEngine(self._rule_graph)
+                self._gap_analyzer = GapAnalyzer(self._rule_graph)
+                self._scenario_expander = ScenarioExpander(self._rule_graph)
+                self._knowledge_gap_detector = KnowledgeGapDetector(self._rule_graph)
+
+            # These don't need the rule graph
+            self._test_designer = RiskBasedTestDesigner()
+            self._defect_engine = DefectEngine()
+
+            logger.info("QA Intelligence v2.0 engines initialized")
+
+        except Exception as e:
+            logger.warning(
+                f"Failed to initialize QA Intelligence v2.0: {e}. "
+                "QA Intelligence features will be unavailable."
+            )
 
     def build(self, issue_key: str, top_k: int = 10) -> Optional[RAGContext]:
         """
@@ -170,6 +309,7 @@ class RAGContextBuilder:
         query = " ".join(query_parts)
 
         # Create story context for retrieval
+        # Note: MAX_PREANALYSIS_KEYWORDS = 20 (see rag/constants.py)
         story_context = StoryContext(
             text=query,
             detected_domains=pre_analysis.detected_domains,
@@ -200,7 +340,143 @@ class RAGContextBuilder:
         # Step 5: Run validators
         validation_results = self._validators.run_as_dicts(story, knowledge_context)
 
-        # Create context (without grounding for now)
+        # Deterministic QA Brain steps (if enabled)
+        required_rules = None
+        coverage_result = None
+        deterministic_output = None
+
+        # QA Intelligence v2.0 outputs
+        ambiguity_report = None
+        gap_report = None
+        test_scenarios = None
+        test_cases = None
+        generated_defects = None
+        knowledge_gap_report = None
+
+        if self._enable_deterministic and self._rule_set_builder:
+            # Step 6: Build required rule set
+            detected_states = pre_analysis.entities.get("states", []) if hasattr(pre_analysis, 'entities') else []
+            required_rules = self._rule_set_builder.build_required_set(
+                story_text=query,
+                pre_analysis=pre_analysis,
+                detected_states=detected_states
+            )
+            required_rules.story_key = story.get("key", "")
+
+            # Step 7: Validate coverage
+            retrieved_rule_ids = self._extract_rule_ids_from_context(knowledge_context)
+            if self._coverage_validator:
+                coverage_result = self._coverage_validator.validate_coverage(
+                    required_rules=required_rules,
+                    retrieved_rule_ids=retrieved_rule_ids
+                )
+
+                # Log coverage warnings
+                if coverage_result.warnings:
+                    for warning in coverage_result.warnings:
+                        logger.warning(warning)
+
+            # Step 8: Generate deterministic output
+            if self._deterministic_generator and coverage_result:
+                deterministic_output = self._deterministic_generator.generate(
+                    story=story,
+                    required_rules=required_rules,
+                    coverage_result=coverage_result,
+                    knowledge_context=knowledge_context
+                )
+
+                if not deterministic_output.can_generate:
+                    logger.warning(
+                        f"Deterministic generation blocked: "
+                        f"{deterministic_output.generation_blocked_reason}"
+                    )
+
+            # Step 9: QA Intelligence v2.0 analysis
+            story_text = self._build_story_text(story)
+
+            # 9a: Ambiguity analysis
+            if self._ambiguity_engine and required_rules:
+                ambiguity_report = self._ambiguity_engine.analyze(
+                    story_text=story_text,
+                    required_rules=required_rules,
+                    detected_states=detected_states
+                )
+                if ambiguity_report.has_blocking_ambiguities():
+                    logger.warning(
+                        f"Blocking ambiguities detected: {len(ambiguity_report.get_critical_items())} critical items"
+                    )
+
+            # 9b: Gap analysis
+            if self._gap_analyzer and required_rules and coverage_result:
+                gap_report = self._gap_analyzer.analyze(
+                    required_rules=required_rules,
+                    coverage_result=coverage_result,
+                    story_text=story_text
+                )
+                if gap_report.has_critical_gaps():
+                    logger.warning(
+                        f"Critical gaps detected: {len(gap_report.get_critical_gaps())} critical items"
+                    )
+
+            # 9c: Scenario expansion
+            if self._scenario_expander and required_rules:
+                test_scenarios = self._scenario_expander.expand(
+                    required_rules=required_rules,
+                    story_key=story.get("key", "UNKNOWN")
+                )
+                logger.info(f"Generated {len(test_scenarios)} test scenarios")
+
+            # 9d: Test case design
+            if self._test_designer and test_scenarios:
+                test_cases = self._test_designer.design_test_cases(
+                    scenarios=test_scenarios,
+                    story_key=story.get("key", "UNKNOWN")
+                )
+                logger.info(f"Designed {len(test_cases)} test cases")
+
+            # 9e: Defect generation
+            if self._defect_engine:
+                generated_defects = []
+
+                # From ambiguity report
+                if ambiguity_report:
+                    ambiguity_defects = self._defect_engine.generate_from_ambiguity(
+                        ambiguity_report=ambiguity_report,
+                        story_key=story.get("key", "UNKNOWN")
+                    )
+                    generated_defects.extend(ambiguity_defects)
+
+                # From gap report
+                if gap_report:
+                    gap_defects = self._defect_engine.generate_from_gaps(
+                        gap_report=gap_report,
+                        story_key=story.get("key", "UNKNOWN")
+                    )
+                    generated_defects.extend(gap_defects)
+
+                # From validation results
+                validation_defects = self._defect_engine.generate_from_validation(
+                    validation_results=validation_results,
+                    story_key=story.get("key", "UNKNOWN")
+                )
+                generated_defects.extend(validation_defects)
+
+                if generated_defects:
+                    logger.info(f"Generated {len(generated_defects)} defects")
+
+            # 9f: Knowledge gap detection
+            if self._knowledge_gap_detector and required_rules:
+                knowledge_gap_report = self._knowledge_gap_detector.detect(
+                    pre_analysis=pre_analysis,
+                    required_rules=required_rules,
+                    story_text=story_text
+                )
+                if knowledge_gap_report.has_gaps:
+                    logger.warning(
+                        f"Knowledge gaps detected: confidence={knowledge_gap_report.coverage_confidence:.0%}"
+                    )
+
+        # Create context
         context = RAGContext(
             story=story,
             pre_analysis=pre_analysis,
@@ -208,19 +484,46 @@ class RAGContextBuilder:
             validation_results=validation_results,
             knowledge_context=knowledge_context,
             grounding=None,
+            required_rules=required_rules,
+            coverage_result=coverage_result,
+            deterministic_output=deterministic_output,
+            # QA Intelligence v2.0
+            ambiguity_report=ambiguity_report,
+            gap_report=gap_report,
+            test_scenarios=test_scenarios,
+            test_cases=test_cases,
+            generated_defects=generated_defects,
+            knowledge_gap_report=knowledge_gap_report,
         )
 
-        # Step 6: Verify grounding
+        # Step 10: Verify grounding (legacy)
         context.grounding = self.verify_grounding(context)
 
         # Log grounding warnings if any
         if context.grounding and context.grounding.warnings:
-            import logging
-            logger = logging.getLogger(__name__)
             for warning in context.grounding.warnings:
                 logger.warning(warning)
 
         return context
+
+    def _build_story_text(self, story: Dict[str, Any]) -> str:
+        """Build combined story text for analysis."""
+        parts = []
+
+        if story.get("title"):
+            parts.append(story["title"])
+
+        if story.get("description"):
+            parts.append(story["description"])
+
+        if story.get("acceptance_criteria"):
+            ac_list = story["acceptance_criteria"]
+            if isinstance(ac_list, list):
+                parts.extend(ac_list)
+            elif isinstance(ac_list, str):
+                parts.append(ac_list)
+
+        return " ".join(parts)
 
     def build_from_story(self, story: Dict[str, Any], top_k: int = 10) -> RAGContext:
         """
@@ -374,25 +677,9 @@ class RAGContextBuilder:
         Returns:
             Set of unique rule IDs found
         """
-        rule_ids = set()
-
-        # Patterns for different rule ID formats
-        patterns = [
-            r'(FIN-[A-Z]{1,5}-\d{3})',   # FIN-REF-012, FIN-B2B-001
-            r'(RULE-[A-Z]{1,5}-\d{3})',  # RULE-ENT-001, RULE-ADMIN-005
-            r'(DEP-[A-Z]{1,5}-\d{3})',   # DEP-EP-001
-            r'(RULE-\d{3})',              # RULE-001 (legacy)
-            r'(FIN-GC-\d{3})',            # FIN-GC-001 (gift card)
-        ]
-
-        for chunk in knowledge_context:
-            content = chunk.get("content", "").upper()
-
-            for pattern in patterns:
-                matches = re.findall(pattern, content)
-                rule_ids.update(matches)
-
-        return rule_ids
+        # Delegate to shared utility (consolidates duplicate logic)
+        from utils.rule_extractor import extract_rule_ids_from_context
+        return extract_rule_ids_from_context(knowledge_context)
 
     def _get_required_rules_from_keywords(
         self,
@@ -411,30 +698,10 @@ class RAGContextBuilder:
         Returns:
             List of rule IDs that must be present
         """
-        if not hasattr(DEFAULT_CONFIG, 'KEYWORD_RULE_MAPPING'):
-            return []
-
-        query_lower = query.lower()
-
-        # Also include keywords from pre-analysis
-        all_text = query_lower
-        if pre_analysis.keywords:
-            all_text += " " + " ".join(pre_analysis.keywords).lower()
-
-        required_rules = []
-
-        for mapping_name, mapping in DEFAULT_CONFIG.KEYWORD_RULE_MAPPING.items():
-            keywords = mapping.get("keywords", [])
-            min_matches = mapping.get("min_matches", 2)
-            rules = mapping.get("rules", [])
-
-            # Count keyword matches
-            match_count = sum(1 for kw in keywords if kw.lower() in all_text)
-
-            if match_count >= min_matches:
-                required_rules.extend(rules)
-
-        return list(set(required_rules))  # Deduplicate
+        # Delegate to shared utility (consolidates duplicate logic)
+        from utils.keyword_rule_mapper import get_required_rules_from_keywords
+        keywords = pre_analysis.keywords if pre_analysis.keywords else []
+        return get_required_rules_from_keywords(query, keywords)
 
     def close(self):
         """Release resources."""

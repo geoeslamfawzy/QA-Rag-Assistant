@@ -1,0 +1,31 @@
+"Summary","Description","Issue Type","Priority","Components","Labels","Sprint","Parent"
+"Missing Acceptance Criteria: [CMB-32860] [ADMINPANEL] Payment Section","Preconditions:
+Story CMB-32860 exists in backlog
+User has access to payments, b2b_pricing, admin_panel module(s)
+
+Defect Description (User Provided):
+no section called payment
+
+Business Rule Reference:
+- RULE-PAY-010
+- RULE-ADMIN-004
+- RULE-PAY-020
+- RULE-ENT-004
+- RULE-ADMIN-003
+
+Steps to Reproduce:
+1. Open story CMB-32860 in Jira
+2. Navigate to acceptance criteria section
+3. Observe that no acceptance criteria are defined
+
+Expected Results:
+Story should have clear, testable acceptance criteria that define:
+- Success conditions
+- Edge cases to handle
+- Error scenarios
+
+Actual Results:
+Acceptance criteria field is empty or insufficient.
+
+Environment:
+Yassir Mobility B2B Platform","Story Defect","Highest","Payments","Regression-testing,regression-testing","Defects/Bugs/Imp","CMB-32860"

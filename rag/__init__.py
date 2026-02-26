@@ -13,15 +13,12 @@ Components:
 - prompt_builder: Structured prompt assembly
 """
 
-from .config import RAGConfig
-from .embeddings import OllamaEmbedder
-from .indexer import IndexBuilder
-from .retriever import HybridRetriever
-from .story_pre_analyzer import StoryPreAnalyzer
-from .prompt_builder import PromptBuilder
+# Lazy imports to avoid loading heavy dependencies when only config is needed
+from .config import RAGConfig, DEFAULT_CONFIG
 
 __all__ = [
     'RAGConfig',
+    'DEFAULT_CONFIG',
     'OllamaEmbedder',
     'IndexBuilder',
     'HybridRetriever',
@@ -30,3 +27,23 @@ __all__ = [
 ]
 
 __version__ = '1.0.0'
+
+
+def __getattr__(name):
+    """Lazy import for heavy dependencies."""
+    if name == 'OllamaEmbedder':
+        from .embeddings import OllamaEmbedder
+        return OllamaEmbedder
+    elif name == 'IndexBuilder':
+        from .indexer import IndexBuilder
+        return IndexBuilder
+    elif name == 'HybridRetriever':
+        from .retriever import HybridRetriever
+        return HybridRetriever
+    elif name == 'StoryPreAnalyzer':
+        from .story_pre_analyzer import StoryPreAnalyzer
+        return StoryPreAnalyzer
+    elif name == 'PromptBuilder':
+        from .prompt_builder import PromptBuilder
+        return PromptBuilder
+    raise AttributeError(f"module 'rag' has no attribute '{name}'")

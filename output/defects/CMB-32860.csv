@@ -4,8 +4,8 @@ Story CMB-32860 exists in backlog
 User has access to payments, b2b_pricing, admin_panel module(s)
 
 Description:
-Rule matching completed
-Validation Score: 100%
+Matched 31/44 rules (coverage: 26%)
+Validation Score: 26%
 
 Steps to Reproduce:
 1. Open story CMB-32860 in Jira
@@ -17,12 +17,16 @@ Expected Results:
 Story should comply with all applicable business rules.
 
 Actual Results:
-[info] No atomic rules found in knowledge context
+[info] Matched rule: RULE-PAY-010 - Invoice generated at month end (Rule: RULE-PAY-010)
+[info] Matched rule: RULE-ADMIN-004 - Single Super Admin per enterprise (Rule: RULE-ADMIN-004)
+[info] Matched rule: RULE-PAY-020 - Commission displayed separately on invoice (Rule: RULE-PAY-020)
 
 Environment:
 Yassir Mobility B2B Platform
 
 Related Rules:
-- payments/admin_panel:_payments_tab_2
-- payments/api_endpoints_7
-- payments/overview_0","Defect","Highest","Payments","Regression-testing,regression-testing","Defects/Bugs/Imp",""
+- RULE-PAY-010
+- RULE-ADMIN-004
+- RULE-PAY-020
+- RULE-ENT-004
+- RULE-ADMIN-003","Defect","Highest","Payments","Regression-testing,regression-testing","Defects/Bugs/Imp",""

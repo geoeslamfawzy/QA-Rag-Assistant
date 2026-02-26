@@ -298,6 +298,49 @@ class RAGConfig:
         }
     })
 
+    # ===========================================
+    # DETERMINISTIC QA BRAIN SETTINGS
+    # ===========================================
+
+    # Strict mode - blocks generation when critical rules missing
+    STRICT_MODE: bool = True
+
+    # Coverage thresholds
+    CRITICAL_COVERAGE_THRESHOLD: float = 1.0   # All critical rules required
+    HIGH_RISK_COVERAGE_THRESHOLD: float = 0.9  # 90% of high-risk rules
+    OVERALL_COVERAGE_THRESHOLD: float = 0.7    # 70% overall coverage
+
+    # Confidence thresholds
+    MIN_CONFIDENCE_SCORE: float = 0.6          # Min confidence to generate
+
+    # Grounded Reasoning Score thresholds
+    MIN_GROUNDING_SCORE: float = 3.0           # Min score (0-5 scale)
+
+    # Dependency expansion
+    MAX_DEPENDENCY_DEPTH: int = 5              # Max recursion for dependencies
+
+    # Output settings for deterministic mode
+    INCLUDE_REASONING_CHAINS: bool = True      # Include full reasoning in output
+    INCLUDE_COVERAGE_REPORT: bool = True       # Include coverage metrics
+    INCLUDE_DEPENDENCY_GRAPH: bool = False     # Include graph visualization
+
+    # ===========================================
+    # INTEGRITY HARDENING FLAGS (Security Fixes)
+    # ===========================================
+
+    # If False, UNKNOWN coverage status blocks generation (recommended: False)
+    ALLOW_UNKNOWN_DOMAIN: bool = False
+
+    # If False, unverified evidence reduces confidence (recommended: False)
+    ALLOW_UNVERIFIED_EVIDENCE: bool = False
+
+    # Minimum keyword matches required for verified evidence
+    MIN_EVIDENCE_KEYWORDS: int = 1
+
+    # If True, critical rules ALWAYS block regardless of STRICT_MODE
+    # (This is always enforced - flag is for documentation)
+    CRITICAL_RULES_ALWAYS_BLOCK: bool = True
+
     def __post_init__(self):
         """Ensure paths are Path objects."""
         if isinstance(self.INDEX_DIR, str):

@@ -12,12 +12,18 @@ Output is a markdown file ready for manual paste into Claude Pro.
 
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from dataclasses import dataclass, field
 
 from .config import RAGConfig, DEFAULT_CONFIG
 from .retriever import RetrievalResult
 from .story_pre_analyzer import PreAnalysisResult
+
+# Type hints for deterministic components (avoid circular imports)
+if TYPE_CHECKING:
+    from models.required_rule_set import RequiredRuleSet
+    from validators.coverage_validator import CoverageResult
+    from services.deterministic_generator import DeterministicOutput
 
 
 @dataclass
@@ -40,6 +46,11 @@ class PromptComponents:
     validation_results: Dict[str, Any] = field(default_factory=dict)
     grounding: Optional[GroundingInfo] = None
     include_debug: bool = False
+
+    # Deterministic QA Brain components
+    required_rules: Optional[Any] = None  # RequiredRuleSet
+    coverage_result: Optional[Any] = None  # CoverageResult
+    deterministic_output: Optional[Any] = None  # DeterministicOutput
 
 
 class PromptBuilder:
@@ -151,6 +162,28 @@ class PromptBuilder:
         self.components.grounding = grounding
         return self
 
+    def set_deterministic_output(
+        self,
+        required_rules: Optional[Any] = None,
+        coverage_result: Optional[Any] = None,
+        deterministic_output: Optional[Any] = None
+    ) -> 'PromptBuilder':
+        """
+        Set deterministic QA brain output.
+
+        Args:
+            required_rules: RequiredRuleSet from rule set builder
+            coverage_result: CoverageResult from coverage validator
+            deterministic_output: DeterministicOutput from generator
+
+        Returns:
+            Self for chaining.
+        """
+        self.components.required_rules = required_rules
+        self.components.coverage_result = coverage_result
+        self.components.deterministic_output = deterministic_output
+        return self
+
     def build(self) -> str:
         """
         Build the complete structured prompt.
@@ -171,6 +204,10 @@ class PromptBuilder:
 
         # Grounding Verification (shows extracted rules and warnings)
         sections.append(self._build_grounding_section())
+
+        # Deterministic Reasoning (if available)
+        if self.components.deterministic_output:
+            sections.append(self._build_deterministic_section())
 
         # Validation Results
         sections.append(self._build_validation_section())
@@ -444,6 +481,115 @@ class PromptBuilder:
             lines.append("### Grounding Warnings")
             for warning in grounding.warnings:
                 lines.append(f"- {warning}")
+            lines.append("")
+
+        return "\n".join(lines)
+
+    def _build_deterministic_section(self) -> str:
+        """
+        Build the deterministic reasoning section.
+
+        Includes:
+        - Coverage report
+        - Reasoning chains
+        - Test implications
+        - Cross-module impact
+        """
+        det_output = self.components.deterministic_output
+
+        if not det_output:
+            return ""
+
+        lines = [
+            "---",
+            "",
+            "## DETERMINISTIC REASONING",
+            "",
+        ]
+
+        # Generation status
+        if det_output.can_generate:
+            lines.append(f"**Status:** Generation Allowed (Confidence: {det_output.confidence_score:.0%})")
+        else:
+            lines.append("**Status:** GENERATION BLOCKED")
+            lines.append(f"**Reason:** {det_output.generation_blocked_reason}")
+            lines.append("")
+            lines.append("> **Warning:** The following analysis may be incomplete due to missing critical rules.")
+
+        lines.append("")
+
+        # Coverage summary
+        coverage = det_output.coverage_result
+        if coverage:
+            lines.append("### Coverage Summary")
+            lines.append(f"- **Required Rules:** {len(coverage.required_rules)}")
+            lines.append(f"- **Retrieved Rules:** {len(coverage.retrieved_rules)}")
+            lines.append(f"- **Overall Coverage:** {coverage.coverage_percentage:.0%}")
+            lines.append(f"- **Critical Coverage:** {coverage.critical_coverage:.0%}")
+            lines.append(f"- **Status:** {coverage.status.value.upper()}")
+
+            if coverage.missing_critical:
+                lines.append("")
+                lines.append("**CRITICAL MISSING RULES:**")
+                for rule_id in coverage.missing_critical:
+                    lines.append(f"- `{rule_id}` (REQUIRED - blocks confident generation)")
+
+            if coverage.missing_high_risk:
+                lines.append("")
+                lines.append("**HIGH-RISK MISSING RULES:**")
+                for rule_id in coverage.missing_high_risk[:5]:  # Top 5
+                    lines.append(f"- `{rule_id}`")
+
+            lines.append("")
+
+        # Reasoning chains (if available)
+        reasoning_context = det_output.reasoning_context
+        if reasoning_context and reasoning_context.chains:
+            lines.append("### Reasoning Chains")
+            lines.append(f"*{len(reasoning_context.chains)} reasoning chain(s) constructed*")
+            lines.append("")
+
+            for chain in reasoning_context.chains[:5]:  # Top 5 chains
+                lines.append(f"#### Chain: {chain.primary_rule_id}")
+                if chain.story_snippet:
+                    lines.append(f"> *Story Context:* {chain.story_snippet[:150]}...")
+                lines.append("")
+
+                for i, link in enumerate(chain.links[:4], 1):  # Top 4 links per chain
+                    step_type = link.step_type.value.replace("_", " ").title()
+                    lines.append(f"{i}. **{step_type}**")
+                    lines.append(f"   - {link.description}")
+                    if link.rule:
+                        lines.append(f"   - Rule: `{link.rule.rule_id}`")
+                    if link.implications:
+                        for impl in link.implications[:2]:
+                            lines.append(f"   - *Implication:* {impl}")
+
+                lines.append("")
+
+        # Test implications
+        if det_output.test_implications:
+            lines.append("### Test Implications")
+            lines.append(f"*{len(det_output.test_implications)} test implication(s) derived*")
+            lines.append("")
+
+            for impl in det_output.test_implications[:10]:  # Top 10
+                test_type = impl.get('type', 'unknown').upper()
+                description = impl.get('description', '')
+                rule_id = impl.get('rule_id', '')
+                lines.append(f"- **[{test_type}]** {description}")
+                if rule_id:
+                    lines.append(f"  - Based on: `{rule_id}`")
+
+            lines.append("")
+
+        # Cross-module impact
+        if det_output.impacted_modules:
+            lines.append("### Cross-Module Impact")
+            lines.append("*The following modules are affected and should be tested:*")
+            lines.append("")
+            for module in det_output.impacted_modules:
+                lines.append(f"- {module}")
             lines.append("")
 
         return "\n".join(lines)
@@ -722,45 +868,6 @@ class PromptBuilder:
         ]
 
         return "\n".join(lines)
-
-
-# Convenience function
-def build_prompt_for_story(
-    story: Dict[str, Any],
-    chunks: List[RetrievalResult],
-    pre_analysis: PreAnalysisResult,
-    validations: Dict[str, Any],
-    save: bool = True,
-    debug: bool = False
-) -> str:
-    """
-    Build a complete prompt for a story.
-
-    Args:
-        story: Jira story dictionary.
-        chunks: Retrieved knowledge chunks.
-        pre_analysis: Story pre-analysis results.
-        validations: Validation results dictionary.
-        save: Whether to save to file.
-        debug: Whether to include debug info.
-
-    Returns:
-        The built prompt string.
-    """
-    builder = PromptBuilder()
-    builder.set_story(story)
-    builder.set_retrieved_context(chunks)
-    builder.set_pre_analysis(pre_analysis)
-    builder.set_validation_results(validations)
-    builder.set_debug_mode(debug)
-
-    prompt = builder.build()
-
-    if save:
-        path = builder.save()
-        print(f"Prompt saved to: {path}")
-
-    return prompt
 
 
 if __name__ == "__main__":
